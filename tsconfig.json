@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "baseUrl": ".",
+    "declaration": true,
+    "importHelpers": true,
+    "types": [],
+    "paths": {
+      "@/*": [ "./src/*" ]
+    },
+    "outDir": "./lib",
+  },
+  "include": [
+    "./src/**/*.ts",
+    "./src/**/*.js",
+    "./src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ],
+  "extends": "./tsconfig.base.json"
+}

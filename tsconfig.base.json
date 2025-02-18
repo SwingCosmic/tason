@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "composite": false,
+
+    "target": "esnext",
+    "module": "esnext",
+    "strict": true,
+
+    "jsx": "preserve",
+    "strictFunctionTypes": false,
+    "moduleResolution": "node",
+    "useDefineForClassFields": true,
+    
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+
+    "lib": [
+      "esnext",
+      "dom"
+    ]
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}
