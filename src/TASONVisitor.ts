@@ -1,7 +1,26 @@
 import { TerminalNode } from "antlr4";
-import { StartContext, ValueContext, NullValueContext, BooleanTrueContext, BooleanFalseContext, StringValueContext, NumberValueContext, ArrayValueContext, ObjectValueContext, TypeInstanceValueContext, ObjectContext, PairContext, KeyContext, ArrayContext, TypeInstanceContext } from "./grammar/TASONParser";
+import {
+  StartContext,
+  ValueContext,
+  NullValueContext,
+  BooleanValueContext,
+  StringValueContext,
+  NumberValueContext,
+  ArrayValueContext,
+  ObjectValueContext,
+  TypeInstanceValueContext,
+  ObjectContext,
+  PairContext,
+  KeyContext,
+  ArrayContext,
+  TypeInstanceContext,
+  BooleanContext,
+  ScalarTypeInstanceContext,
+  ObjectTypeInstanceContext,
+  IdentifierContext,
+  StringKeyContext,
+} from "./grammar/TASONParser";
 import TASONTypeRegistry from "./TASONTypeRegistry";
-
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
@@ -20,10 +39,8 @@ export class TASONVisitor {
   Value(ctx: ValueContext): any {
     if (ctx instanceof NullValueContext) {
       return this.NullValue(ctx);
-    } else if (ctx instanceof BooleanTrueContext) {
-      return this.BooleanTrue(ctx);
-    } else if (ctx instanceof BooleanFalseContext) {
-      return this.BooleanFalse(ctx);
+    } else if (ctx instanceof BooleanValueContext) {
+      return this.BooleanValue(ctx);
     } else if (ctx instanceof StringValueContext) {
       return this.StringValue(ctx);
     } else if (ctx instanceof NumberValueContext) {
@@ -60,7 +77,14 @@ export class TASONVisitor {
   }
 
   Key(ctx: KeyContext) {
-    return ctx.getText().replace(/^['"]|['"]$/g, "");
+    if (ctx instanceof IdentifierContext) {
+      return this.Identifier(ctx);
+    }
+    return this.StringValue(ctx as StringKeyContext);
+  }
+
+  Identifier(ctx: IdentifierContext) {
+    return ctx.getText();
   }
 
   ArrayValue(ctx: ArrayValueContext) {
@@ -71,7 +95,7 @@ export class TASONVisitor {
     return ctx.value_list().map((valueCtx) => this.Value(valueCtx));
   }
 
-  StringValue(ctx: StringValueContext) {
+  StringValue(ctx: StringValueContext | StringKeyContext) {
     return this.getTextValue(ctx.STRING());
   }
 
@@ -79,12 +103,12 @@ export class TASONVisitor {
     return parseFloat(ctx.getText());
   }
 
-  BooleanTrue(ctx: BooleanTrueContext) {
-    return true;
+  BooleanValue(ctx: BooleanValueContext) {
+    return this.Boolean(ctx.boolean_());
   }
 
-  BooleanFalse(ctx: BooleanFalseContext) {
-    return false;
+  Boolean(ctx: BooleanContext) {
+    return ctx.getText() === "true" ? true : false;
   }
 
   NullValue(ctx: NullValueContext) {
@@ -96,16 +120,35 @@ export class TASONVisitor {
   }
 
   TypeInstance(ctx: TypeInstanceContext) {
-    const typeName = ctx.TYPE_NAME().getText();
-    const str = () => this.getTextValue(ctx.STRING());
-    const obj = () => this.Object(ctx.object());
+    if (ctx instanceof ScalarTypeInstanceContext) {
+      return this.ScalarTypeInstance(ctx);
+    } else if (ctx instanceof ObjectTypeInstanceContext) {
+      return this.ObjectTypeInstance(ctx);
+    } else {
+      throw new Error(`Unsupported type instance type: ${ctx.constructor.name}`);
+    }
+  }
 
+  ScalarTypeInstance(ctx: ScalarTypeInstanceContext) {
+    const typeName = ctx.TYPE_NAME().getText();
+    const str = this.getTextValue(ctx.STRING());
+
+    return this.createTypeInstance(typeName, str);
+  }
+
+  ObjectTypeInstance(ctx: ObjectTypeInstanceContext) {
+    const typeName = ctx.TYPE_NAME().getText();
+    const obj = this.Object(ctx.object());
+
+    return this.createTypeInstance(typeName, obj);
+  }
+
+  private createTypeInstance(typeName: string, value: any) {
     const typeInfo = this.registry.getType(typeName);
     if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
-
     return this.registry.createInstance(
       typeInfo,
-      typeInfo.kind === "object" ? obj() : str()
+      value
     );
   }
 

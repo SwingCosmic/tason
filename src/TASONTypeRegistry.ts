@@ -9,7 +9,7 @@ export default class TASONTypeRegistry {
       if (unsafeTypes.includes(name) && !allowUnsafeTypes) {
         continue;
       }
-      this.registerType(name, type as any);
+      this.registerType<any>(name, type);
     }
   }
 
@@ -17,7 +17,7 @@ export default class TASONTypeRegistry {
     this.types.set(name, typeInfo);
   }
 
-  getType(name: string): TASONTypeInfo<any> | undefined {
+  getType<T>(name: string): TASONTypeInfo<T> | undefined {
     return this.types.get(name);
   }
 
@@ -27,7 +27,7 @@ export default class TASONTypeRegistry {
     }
 
     if (!type) {
-      throw new Error(`Unknown type: ${name}`);
+      throw new Error(`Unknown type: ${type}`);
     }
 
     if (type.kind === "scalar") {

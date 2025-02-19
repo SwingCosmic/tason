@@ -7,22 +7,27 @@ value
   | array           # ArrayValue
   | STRING          # StringValue
   | NUMBER          # NumberValue
-  | 'true'          # BooleanTrue
-  | 'false'         # BooleanFalse
+  | boolean         # BooleanValue
   | 'null'          # NullValue
   | typeInstance    # TypeInstanceValue
   ;
+
+boolean: 'true' | 'false';
+
 typeInstance
-  : TYPE_NAME '(' STRING ')'
-  | TYPE_NAME '(' object ')'
-  // | TYPE_NAME '(' array ')'
+  : TYPE_NAME '(' STRING ')' # ScalarTypeInstance
+  | TYPE_NAME '(' object ')' # ObjectTypeInstance
   ;
 
 object: '{' (pair (',' pair)* ','?)? '}';
 
 pair: key ':' value;
 
-key: STRING | IDENTIFIER;
+key
+  : STRING      # StringKey
+  | IDENTIFIER  # Identifier
+  ;
+
 array: '[' (value (',' value)* ','?)? ']';
 
 TYPE_NAME: [A-Z][a-zA-Z0-9_]*;

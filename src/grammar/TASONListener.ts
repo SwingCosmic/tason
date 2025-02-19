@@ -8,14 +8,16 @@ import { ObjectValueContext } from "./TASONParser.js";
 import { ArrayValueContext } from "./TASONParser.js";
 import { StringValueContext } from "./TASONParser.js";
 import { NumberValueContext } from "./TASONParser.js";
-import { BooleanTrueContext } from "./TASONParser.js";
-import { BooleanFalseContext } from "./TASONParser.js";
+import { BooleanValueContext } from "./TASONParser.js";
 import { NullValueContext } from "./TASONParser.js";
 import { TypeInstanceValueContext } from "./TASONParser.js";
-import { TypeInstanceContext } from "./TASONParser.js";
+import { BooleanContext } from "./TASONParser.js";
+import { ScalarTypeInstanceContext } from "./TASONParser.js";
+import { ObjectTypeInstanceContext } from "./TASONParser.js";
 import { ObjectContext } from "./TASONParser.js";
 import { PairContext } from "./TASONParser.js";
-import { KeyContext } from "./TASONParser.js";
+import { StringKeyContext } from "./TASONParser.js";
+import { IdentifierContext } from "./TASONParser.js";
 import { ArrayContext } from "./TASONParser.js";
 
 
@@ -83,29 +85,17 @@ export default class TASONListener extends ParseTreeListener {
 	 */
 	exitNumberValue?: (ctx: NumberValueContext) => void;
 	/**
-	 * Enter a parse tree produced by the `BooleanTrue`
+	 * Enter a parse tree produced by the `BooleanValue`
 	 * labeled alternative in `TASONParser.value`.
 	 * @param ctx the parse tree
 	 */
-	enterBooleanTrue?: (ctx: BooleanTrueContext) => void;
+	enterBooleanValue?: (ctx: BooleanValueContext) => void;
 	/**
-	 * Exit a parse tree produced by the `BooleanTrue`
+	 * Exit a parse tree produced by the `BooleanValue`
 	 * labeled alternative in `TASONParser.value`.
 	 * @param ctx the parse tree
 	 */
-	exitBooleanTrue?: (ctx: BooleanTrueContext) => void;
-	/**
-	 * Enter a parse tree produced by the `BooleanFalse`
-	 * labeled alternative in `TASONParser.value`.
-	 * @param ctx the parse tree
-	 */
-	enterBooleanFalse?: (ctx: BooleanFalseContext) => void;
-	/**
-	 * Exit a parse tree produced by the `BooleanFalse`
-	 * labeled alternative in `TASONParser.value`.
-	 * @param ctx the parse tree
-	 */
-	exitBooleanFalse?: (ctx: BooleanFalseContext) => void;
+	exitBooleanValue?: (ctx: BooleanValueContext) => void;
 	/**
 	 * Enter a parse tree produced by the `NullValue`
 	 * labeled alternative in `TASONParser.value`.
@@ -131,15 +121,39 @@ export default class TASONListener extends ParseTreeListener {
 	 */
 	exitTypeInstanceValue?: (ctx: TypeInstanceValueContext) => void;
 	/**
-	 * Enter a parse tree produced by `TASONParser.typeInstance`.
+	 * Enter a parse tree produced by `TASONParser.boolean`.
 	 * @param ctx the parse tree
 	 */
-	enterTypeInstance?: (ctx: TypeInstanceContext) => void;
+	enterBoolean?: (ctx: BooleanContext) => void;
 	/**
-	 * Exit a parse tree produced by `TASONParser.typeInstance`.
+	 * Exit a parse tree produced by `TASONParser.boolean`.
 	 * @param ctx the parse tree
 	 */
-	exitTypeInstance?: (ctx: TypeInstanceContext) => void;
+	exitBoolean?: (ctx: BooleanContext) => void;
+	/**
+	 * Enter a parse tree produced by the `ScalarTypeInstance`
+	 * labeled alternative in `TASONParser.typeInstance`.
+	 * @param ctx the parse tree
+	 */
+	enterScalarTypeInstance?: (ctx: ScalarTypeInstanceContext) => void;
+	/**
+	 * Exit a parse tree produced by the `ScalarTypeInstance`
+	 * labeled alternative in `TASONParser.typeInstance`.
+	 * @param ctx the parse tree
+	 */
+	exitScalarTypeInstance?: (ctx: ScalarTypeInstanceContext) => void;
+	/**
+	 * Enter a parse tree produced by the `ObjectTypeInstance`
+	 * labeled alternative in `TASONParser.typeInstance`.
+	 * @param ctx the parse tree
+	 */
+	enterObjectTypeInstance?: (ctx: ObjectTypeInstanceContext) => void;
+	/**
+	 * Exit a parse tree produced by the `ObjectTypeInstance`
+	 * labeled alternative in `TASONParser.typeInstance`.
+	 * @param ctx the parse tree
+	 */
+	exitObjectTypeInstance?: (ctx: ObjectTypeInstanceContext) => void;
 	/**
 	 * Enter a parse tree produced by `TASONParser.object`.
 	 * @param ctx the parse tree
@@ -161,15 +175,29 @@ export default class TASONListener extends ParseTreeListener {
 	 */
 	exitPair?: (ctx: PairContext) => void;
 	/**
-	 * Enter a parse tree produced by `TASONParser.key`.
+	 * Enter a parse tree produced by the `StringKey`
+	 * labeled alternative in `TASONParser.key`.
 	 * @param ctx the parse tree
 	 */
-	enterKey?: (ctx: KeyContext) => void;
+	enterStringKey?: (ctx: StringKeyContext) => void;
 	/**
-	 * Exit a parse tree produced by `TASONParser.key`.
+	 * Exit a parse tree produced by the `StringKey`
+	 * labeled alternative in `TASONParser.key`.
 	 * @param ctx the parse tree
 	 */
-	exitKey?: (ctx: KeyContext) => void;
+	exitStringKey?: (ctx: StringKeyContext) => void;
+	/**
+	 * Enter a parse tree produced by the `Identifier`
+	 * labeled alternative in `TASONParser.key`.
+	 * @param ctx the parse tree
+	 */
+	enterIdentifier?: (ctx: IdentifierContext) => void;
+	/**
+	 * Exit a parse tree produced by the `Identifier`
+	 * labeled alternative in `TASONParser.key`.
+	 * @param ctx the parse tree
+	 */
+	exitIdentifier?: (ctx: IdentifierContext) => void;
 	/**
 	 * Enter a parse tree produced by `TASONParser.array`.
 	 * @param ctx the parse tree
