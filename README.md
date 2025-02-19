@@ -5,7 +5,7 @@ TASON (Typed Another Scriptable Object Notation) 是一种类型化的对象表�
 
 ## 特性
 
-1. TASON是JSON5的超集，对于熟悉JSON/JSON5/JavaScript对象字面量语法的开发者来说，使用起来非常方便。
+1. TASON和JSON5几乎完全兼容，对于熟悉JSON/JSON5/JavaScript对象字面量语法的开发者来说，使用起来非常方便。
 2. TASON支持带类型序列化，可以序列化任何类型的对象，包括自定义类型，语法和使用数据库管理工具查看BSON时所用的格式类似。
 3. TASON是语言无关的，TASON类型的具体实现取决于所使用的语言
 
@@ -13,12 +13,35 @@ TASON (Typed Another Scriptable Object Notation) 是一种类型化的对象表�
 
 涵盖了JSON5中的基本类型
 
-* null
-* boolean
-* number，64位浮点数，支持十进制、十六进制、八进制、二进制和科学计数法，以及NaN、Infinity等特殊值
-* string，支持单引号和双引号，支持Unicode字符，支持转义字符
-* array，可以有尾随逗号
-* object，可以有尾随逗号，属性名可以是标识符或者字符串
+* `null`
+* boolean: `true`或`false`
+* number: 64位浮点数
+  * ✅ 十进制整数和小数
+  * ✅ `0x`十六进制
+  * ✅ `0o`八进制
+  * ✅ `0b`二进制
+  * ✅ 科学计数法
+  * ✅ `NaN`,`Infinity`, `-Infinity`
+  * ✅ .01和10.
+* string: 字符串
+  * ✅ 单引号
+  * ✅ 双引号
+  * ✅ 不转义的Unicode字符
+  * ✅ `\uXXXX` Unicode字符转义
+  * ✅ `\xXX` 十六进制转义
+  * ✅ `\b \f \n \r \t \v \0 \' \"`
+  * ⚠️ js支持 `\u{XXXX}` 形式的Unicode字符转义，但这和`\uXXXX`作用完全相同并且更长，故被排除以简化语法
+  * ❌ 不支持转义行尾换行符，从而让字符串跨域多行。TASON主要面向数据传输而不是配置文件，在跨平台情况下检查换行符采用的是CRLF还是LF十分困难
+  * ❌ 不支持转义`/`，在大部分语言中正斜杠都无需转义
+* array: 数组
+  * ✅ 可以有尾随逗号
+  * ✅ 支持各种可迭代对象。例如在JavaScript中指`Iterable<T>`， C#中指`IEnumerable<T>`
+* object: 对象字面量
+  * ✅ 可以有尾随逗号
+  * ✅ 属性名可以是符合 `[a-zA-Z_][a-zA-Z0-9_]*` 的标识符
+  * ✅ 属性名可以是字符串
+  * ⚠️ 不支持以`$`开头的标识符，因为很多语言如C#的标识符不能以`$`开头
+  * ❌ 不支持将其他合法的Unicode字符（包括汉字）作为标识符，容易造成混淆，并且非字母数字的标识符很少作为属性名
 
 ## TASON类型实例
 

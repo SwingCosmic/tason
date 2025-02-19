@@ -21,6 +21,8 @@ import {
   StringKeyContext,
 } from "./grammar/TASONParser";
 import TASONTypeRegistry from "./TASONTypeRegistry";
+import JSON5 from "json5";
+import unescape from "unescape-js";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
@@ -153,6 +155,12 @@ export class TASONVisitor {
   }
 
   private getTextValue(ctx: TerminalNode) {
-    return ctx.getText().replace(/^['"]|['"]$/g, "");
+    let str = ctx.getText();
+    if (str.length < 2) {
+      throw new Error(`Invalid string literal: ${str}`);
+    }
+    str = str.slice(1, -1);
+    return unescape(str);
+    // return JSON5.parse(str);
   }
 }

@@ -38,7 +38,8 @@ STRING
   | '\'' (ESC | SAFE_STRING_CHAR)* '\''
   ;
 
-fragment ESC: '\\' (["'\\/bfnrt] | UNICODE);
+fragment ESC: '\\' (["'\\bfnrtv0] | UNICODE | HEX_ESC);
+fragment HEX_ESC: 'x' HEX HEX;
 fragment UNICODE: 'u' HEX HEX HEX HEX;
 fragment HEX: [0-9a-fA-F];
 fragment SAFE_STRING_CHAR: ~["'\\\u0000-\u001F];
