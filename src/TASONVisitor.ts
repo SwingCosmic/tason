@@ -23,6 +23,7 @@ import {
 import TASONTypeRegistry from "./TASONTypeRegistry";
 import JSON5 from "json5";
 import unescape from "unescape-js";
+import Decimal from "decimal.js";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
@@ -102,7 +103,9 @@ export class TASONVisitor {
   }
 
   NumberValue(ctx: NumberValueContext) {
-    return parseFloat(ctx.getText());
+    const n = ctx.getText();
+    const d = new Decimal(n);
+    return d.toNumber();
   }
 
   BooleanValue(ctx: BooleanValueContext) {

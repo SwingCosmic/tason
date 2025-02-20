@@ -2,22 +2,38 @@ grammar TASON;
 
 start: value EOF;
 
+BOOLEAN_TRUE: 'true';
+BOOLEAN_FALSE: 'false';
+NULL: 'null';
+
+TYPE_NAME: [A-Z][a-zA-Z0-9_]*;
+IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
+
+
+WS: [ \t\n\r]+ -> skip;
+SINGLE_LINE_COMMENT: '//' ~[\r\n]* -> skip;
+MULTI_LINE_COMMENT: '/*' .*? '*/' -> skip;
+
+
 value
   : object          # ObjectValue
   | array           # ArrayValue
   | STRING          # StringValue
-  | NUMBER          # NumberValue
+  | number          # NumberValue
   | boolean         # BooleanValue
-  | 'null'          # NullValue
+  | NULL          # NullValue
   | typeInstance    # TypeInstanceValue
   ;
 
-boolean: 'true' | 'false';
+boolean: BOOLEAN_TRUE | BOOLEAN_FALSE;
 
 typeInstance
   : TYPE_NAME '(' STRING ')' # ScalarTypeInstance
   | TYPE_NAME '(' object ')' # ObjectTypeInstance
   ;
+
+
+//#region object
 
 object: '{' (pair (',' pair)* ','?)? '}';
 
@@ -28,35 +44,59 @@ key
   | IDENTIFIER  # Identifier
   ;
 
-array: '[' (value (',' value)* ','?)? ']';
 
-TYPE_NAME: [A-Z][a-zA-Z0-9_]*;
-IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
+
+
+//#region
+
+
+array
+  : '[' value (',' value)* ','? ']'
+  | '[' ']'
+  ;
+
+
+//#region string
 
 STRING
   : '"' (ESC | SAFE_STRING_CHAR)* '"'
   | '\'' (ESC | SAFE_STRING_CHAR)* '\''
   ;
 
-fragment ESC: '\\' (["'\\bfnrtv0] | UNICODE | HEX_ESC);
+fragment ESC: '\\' (["'\\/bfnrtv0] | UNICODE | HEX_ESC);
 fragment HEX_ESC: 'x' HEX HEX;
 fragment UNICODE: 'u' HEX HEX HEX HEX;
-fragment HEX: [0-9a-fA-F];
 fragment SAFE_STRING_CHAR: ~["'\\\u0000-\u001F];
 
+//#region
+
+
+//#region number
+
+number 
+  : SYMBOL? NUMBER
+  | SYMBOL? 'NaN'
+  | SYMBOL? 'Infinity'
+  ;
+
+SYMBOL: '+' | '-';
+
 NUMBER
-  : ('-'? INT ('.' [0-9]*)? EXP?   // 1, 1.2, 3e4, 5E-6
-    | '-'? '.' [0-9]+ EXP?          // .234, .567e8
-    | '0x' HEX+                    // 0x1F
-    | '0b' [01]+                   // 0b1010
-    | '0o' [0-7]+                  // 0o17
-    | 'Infinity'                   // Infinity
-    | 'NaN'                        // NaN
-  );
+	: INT ('.' [0-9]*)? EXP? // +1.e2, 1234, 1234.5
+	| '.' [0-9]+ EXP? // -.2e3
+	| '0x' HEX+  // 0x13579AbCdeF
+	| '0o' OCT+  // 0o1234567
+	| '0b' BIN+  // 0b00100111110
+  ;
 
-fragment INT: '0' | [1-9][0-9]*;
-fragment EXP: [Ee] [+\-]? [0-9]+;
+fragment HEX: [0-9a-fA-F];
+fragment DEC: [0-9];
+fragment OCT: [0-7];
+fragment BIN: [0-1];
 
-WS: [ \t\n\r]+ -> skip;
-SINGLE_LINE_COMMENT: '//' ~[\r\n]* -> skip;
-MULTI_LINE_COMMENT: '/*' .*? '*/' -> skip;
+fragment INT : '0' | [1-9] DEC*;
+fragment EXP: [Ee] SYMBOL? DEC*;
+
+//#region
+
+

@@ -42,4 +42,13 @@ describe("JSON5 兼容性测试", () => {
     expect(() => TASON.parse(`'aaa\\\nbbb'`)).toThrow();
     expect(() => TASON.parse(`'aaa\\\n\\\rbbb'`)).toThrow();
   });
+
+  test("number", () => {
+    expect(TASON.parse("[0, 1, -1, 1.5, -1.5]")).toEqual([0, 1, -1, 1.5, -1.5]);
+    expect(TASON.parse("[.01, 10., -.01, -10.]")).toEqual([0.01, 10, -0.01, -10]);
+    expect(TASON.parse("[1e8, -1.2e5, 2e-5, 2e0]")).toEqual([1e8, -1.2e5, 2e-5, 2]);
+    expect(TASON.parse("[NaN, -NaN, Infinity, -Infinity]")).toEqual([NaN, NaN, Infinity, -Infinity]);
+    expect(TASON.parse("[0b101010, 0o12345, 0xAbcd3Ef]")).toEqual([0b101010, 0o12345, 0xAbcd3Ef]);
+
+  })
 });

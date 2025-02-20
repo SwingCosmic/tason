@@ -19,6 +19,7 @@ import { PairContext } from "./TASONParser.js";
 import { StringKeyContext } from "./TASONParser.js";
 import { IdentifierContext } from "./TASONParser.js";
 import { ArrayContext } from "./TASONParser.js";
+import { NumberContext } from "./TASONParser.js";
 
 
 /**
@@ -208,5 +209,15 @@ export default class TASONListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitArray?: (ctx: ArrayContext) => void;
+	/**
+	 * Enter a parse tree produced by `TASONParser.number`.
+	 * @param ctx the parse tree
+	 */
+	enterNumber?: (ctx: NumberContext) => void;
+	/**
+	 * Exit a parse tree produced by `TASONParser.number`.
+	 * @param ctx the parse tree
+	 */
+	exitNumber?: (ctx: NumberContext) => void;
 }
 

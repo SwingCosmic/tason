@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "description": "Typed Another Scriptable Object Notation",
   "type": "module",
   "main": "lib/index.js",
