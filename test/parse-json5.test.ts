@@ -49,6 +49,8 @@ describe("JSON5 兼容性测试", () => {
     expect(TASON.parse("[1e8, -1.2e5, 2e-5, 2e0]")).toEqual([1e8, -1.2e5, 2e-5, 2]);
     expect(TASON.parse("[NaN, -NaN, Infinity, -Infinity]")).toEqual([NaN, NaN, Infinity, -Infinity]);
     expect(TASON.parse("[0b101010, 0o12345, 0xAbcd3Ef]")).toEqual([0b101010, 0o12345, 0xAbcd3Ef]);
-
+    // 不允许0开头的八进制数字
+    expect(() => TASON.parse("012345")).toThrow();
+    expect(() => TASON.parse("-0372.1")).toThrow();
   })
 });

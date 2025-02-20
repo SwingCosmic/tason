@@ -87,6 +87,9 @@ NUMBER
 	| '0x' HEX+  // 0x13579AbCdeF
 	| '0o' OCT+  // 0o1234567
 	| '0b' BIN+  // 0b00100111110
+  | INVALID_OCT { 
+    throw new Error("Deprecated octal number style");
+  }
   ;
 
 fragment HEX: [0-9a-fA-F];
@@ -96,6 +99,8 @@ fragment BIN: [0-1];
 
 fragment INT : '0' | [1-9] DEC*;
 fragment EXP: [Ee] SYMBOL? DEC*;
+
+fragment INVALID_OCT: '0' [0-9]+;
 
 //#region
 
