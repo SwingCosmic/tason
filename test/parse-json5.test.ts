@@ -52,5 +52,36 @@ describe("JSON5 兼容性测试", () => {
     // 不允许0开头的八进制数字
     expect(() => TASON.parse("012345")).toThrow();
     expect(() => TASON.parse("-0372.1")).toThrow();
+  });
+
+  test("array", () => {
+    expect(TASON.parse("[ \n]")).toEqual([]);
+    expect(TASON.parse("[\n1, \t'2'\v, \r{}]")).toEqual([1, '2', {}]);
+    expect(TASON.parse("[BigInt('-1'), [[3, [4, ]], ], ]")).toEqual([-1n, [[3, [4]]]]);
+
+  });
+
+  test("object", () => {
+    expect(TASON.parse(`{ \n}`)).toEqual({});
+    expect(TASON.parse(`{"啊":{'b^$\\"':{"\\x0f": [666,],"🦶\uD83D\uDE0B": "👍"},},}`))
+      .toEqual({ 啊: {'b^$"': {"\x0f": [666], "🦶😋": "👍"}}});
+    expect(TASON.parse(`{\n\t"a": 1,\n\t"b": "2"  ,\v\t"c": {}\n}`))
+      .toEqual({ a: 1, b: "2", c: {} });
+
+    const a: any = {};
+    a.__proto__ = 42;
+    const b = TASON.parse('{"__proto__":42}');
+    expect(Object.getPrototypeOf(b)).toEqual(Object.prototype);
+    expect(b).toEqual(a);
+
+    expect(() => TASON.parse(`'{ùńîċõďë: 'No'}'`)).toThrow();
+    expect(() => TASON.parse(`'{$_: '?'}'`)).toThrow();
+  });
+
+  test("comments", () => {
+    expect(TASON.parse(`// comment\r\n[1, 2, 3]`)).toEqual([1, 2, 3]);
+    expect(TASON.parse(`/* comment */[1, 2, 3]`)).toEqual([1, 2, 3]);
+    expect(TASON.parse(`{/** \n * @type {a:number} \n */s: {a:1}}`)).toEqual({s: {a:1}});
+    expect(TASON.parse(`[1, /* 2, // */ 3]// comment`)).toEqual([1, 3]);
   })
 });

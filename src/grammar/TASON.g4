@@ -81,15 +81,14 @@ number
 
 SYMBOL: '+' | '-';
 
+// optimized by grok3, no old-style octal numbers, e.g. 0123, -034.2
 NUMBER
-	: INT ('.' [0-9]*)? EXP? // +1.e2, 1234, 1234.5
-	| '.' [0-9]+ EXP? // -.2e3
-	| '0x' HEX+  // 0x13579AbCdeF
-	| '0o' OCT+  // 0o1234567
-	| '0b' BIN+  // 0b00100111110
-  | INVALID_OCT { 
-    throw new Error("Deprecated octal number style");
-  }
+  : '0' ('.' DEC+ EXP? | EXP)?        // 0, 0.5, 0e2
+  | [1-9] DEC* ('.' DEC* EXP? | EXP)?  // 1, 123, 12.5, 123e4
+  | '.' DEC+ EXP?                    // .5, .05e2
+  | '0x' HEX+                          // 0x13579AbCdeF
+  | '0o' OCT+                          // 0o1234567
+  | '0b' BIN+                          // 0b00100111110
   ;
 
 fragment HEX: [0-9a-fA-F];
@@ -97,10 +96,7 @@ fragment DEC: [0-9];
 fragment OCT: [0-7];
 fragment BIN: [0-1];
 
-fragment INT : '0' | [1-9] DEC*;
-fragment EXP: [Ee] SYMBOL? DEC*;
-
-fragment INVALID_OCT: '0' [0-9]+;
+fragment EXP: [Ee] SYMBOL? DEC+;       // e.g., e2, +e3, -e1
 
 //#region
 
