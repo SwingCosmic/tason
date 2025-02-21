@@ -2,19 +2,24 @@ import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
 
 class User {
-  name = "";
-  friends: User[] = [];
+  name: string;
+  friends: User[];
+
+  constructor(name = "", friends: User[] = []) {
+    this.name = name;
+    this.friends = friends;
+  }
 }
 
 describe("parse", () => {
-  test("value", () => {
+  test("custom type", () => {
     const s = new TASON.Serializer();
     s.registry.registerType("User", {
       kind: "object",
       ctor: User,
     });
     const p = s.parse(
-`
+      `
 { 
   a: 'dfgfd', 
   '嗯嗯嗯啊啊啊': [
@@ -33,23 +38,43 @@ describe("parse", () => {
     ],
   }),
 }
-`);
+`
+    );
     expect(p).toEqual({
       a: "dfgfd",
-      "嗯嗯嗯啊啊啊": [0x45ab56n],
-      c: Object.setPrototypeOf({
-        name: "ss",
-        friends: [
-          Object.setPrototypeOf({
-            name: "foo",
-            friends: []
-          }, User.prototype),
-          Object.setPrototypeOf({
-            name: "bar",
-            friends: []
-          }, User.prototype),
-        ],
-      }, User.prototype),
+      嗯嗯嗯啊啊啊: [0x45ab56n],
+      c: new User("ss", [
+        new User("foo", []),
+        new User("bar", []),
+      ]),
     });
-  })
-})
+  });
+
+  test("null prototype object", () => {
+    const s = new TASON.Serializer({
+      nullPrototypeObject: true,
+    });
+
+    expect(Object.getPrototypeOf(s.parse("{ a: 1 }"))).toEqual(null);
+    const s2 = new TASON.Serializer({
+      nullPrototypeObject: false,
+    });
+
+    expect(Object.getPrototypeOf(s2.parse("{ a: 1 }"))).toEqual(
+      Object.prototype
+    );
+  });
+
+  test("allow duplicated keys", () => {
+    const s = new TASON.Serializer({
+      allowDuplicatedKeys: true,
+    });
+
+    expect(s.parse(`{a:1, a:2}`)).toEqual({ a: 2 });
+    const s2 = new TASON.Serializer({
+      allowDuplicatedKeys: false,
+    });
+
+    expect(() => s2.parse(`{a:1, a:2}`)).toThrow();
+  });
+});

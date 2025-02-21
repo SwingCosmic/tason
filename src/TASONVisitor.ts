@@ -21,14 +21,19 @@ import {
   StringKeyContext,
 } from "./grammar/TASONParser";
 import TASONTypeRegistry from "./TASONTypeRegistry";
-import JSON5 from "json5";
 import unescape from "unescape-js";
 import Decimal from "decimal.js";
+import { SerializerOptions } from "./TASONSerializer";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
-  constructor(registry: TASONTypeRegistry) {
+  private options: Required<SerializerOptions>;
+  constructor(
+    registry: TASONTypeRegistry,
+    options: Required<SerializerOptions>
+  ) {
     this.registry = registry;
+    this.options = options;
   }
 
   visit(ctx: StartContext): any {
@@ -64,11 +69,19 @@ export class TASONVisitor {
   }
 
   Object(ctx: ObjectContext) {
-    const obj: Record<string, any> = {};
-    ctx.pair_list().forEach((pairCtx) => {
-      const pair = this.Pair(pairCtx);
-      obj[pair.key] = pair.value;
-    });
+    const obj: Record<string, any> = this.options.nullPrototypeObject
+      ? Object.create(null)
+      : {};
+    const pairs = ctx.pair_list().map(p => this.Pair(p));
+    if (!this.options.allowDuplicatedKeys) {
+      const keys = pairs.map(p => p.key);
+      if (keys.length !== new Set(keys).size) {
+        throw new Error(
+          `Duplicate keys in object`
+        );
+      }
+    }
+    pairs.forEach(pair => obj[pair.key] = pair.value);
     return obj;
   }
 
@@ -151,10 +164,7 @@ export class TASONVisitor {
   private createTypeInstance(typeName: string, value: any) {
     const typeInfo = this.registry.getType(typeName);
     if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
-    return this.registry.createInstance(
-      typeInfo,
-      value
-    );
+    return this.registry.createInstance(typeInfo, value);
   }
 
   private getTextValue(ctx: TerminalNode) {
@@ -164,6 +174,5 @@ export class TASONVisitor {
     }
     str = str.slice(1, -1);
     return unescape(str);
-    // return JSON5.parse(str);
   }
 }

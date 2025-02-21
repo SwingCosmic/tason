@@ -26,10 +26,30 @@ class ThrowingErrorListener implements ErrorListener<any> {
   }
 }
 
-export default class TASONSerializer {
-  readonly registry = new TASONTypeRegistry();
+export interface SerializerOptions {
+  allowUnsafeTypes?: boolean;
+  nullPrototypeObject?: boolean;
+  allowDuplicatedKeys?: boolean;
+}
 
-  constructor() {}
+export interface SerializerOptionsInit extends SerializerOptions {
+  registry?: TASONTypeRegistry;
+}
+
+export default class TASONSerializer {
+  readonly registry: TASONTypeRegistry;
+  readonly options: Required<SerializerOptions>;
+
+  constructor(options: SerializerOptionsInit = {}) {
+    options.allowUnsafeTypes ??= false;
+    options.nullPrototypeObject ??= false;
+    options.allowDuplicatedKeys ??= true;
+    options.registry ??= new TASONTypeRegistry(options.allowUnsafeTypes);
+
+    this.registry = options.registry;
+    delete options.registry;
+    this.options = options as any;
+  }
 
   parse<T = any>(text: string): T {
     const chars = CharStreams.fromString(text);
@@ -39,7 +59,7 @@ export default class TASONSerializer {
     parser.addErrorListener(new ThrowingErrorListener());
     const tree = parser.start();
 
-    const visitor = new TASONVisitor(this.registry);
+    const visitor = new TASONVisitor(this.registry, this.options);
     return visitor.visit(tree);
   }
 

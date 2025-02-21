@@ -65,6 +65,63 @@ TASON类型包括两大类：标量类型(Scalar)和对象类型(Object)。
   * 对于动态语言如js来说，为了简化使用，对应的类的构造函数可以接受一个对象字面量作为参数，其中对象的每一个属性都是这个类的公共可写属性名
   * 在C#中record类型可以直接注册为对象类型，因为它通常具有类初始化器、复制构造函数等简化对象创建的方法
 
+
+## 使用
+
+主要的类为`TASONSerializer`，提供了`parse`和`stringify`方法。
+该类的构造函数支持传递一些参数来控制序列化和反序列化的行为，例如是否允许重复的对象键，是否反序列化对象为无prototype的对象等。
+
+包的默认导出对象`TASON`是具有合理参数的`TASONSerializer`默认实例，可以直接使用。
+
+### 反序列化
+
+```typescript
+import TASON from 'tason';
+
+class Person {
+  name: string;
+  age: number;
+
+  constructor(name = "", age = 0) {
+    this.name = name;
+    this.age = age;
+  }
+}
+
+TASON.registry.registerType("Person", {
+  kind: "object",
+  ctor: Person,
+});
+
+const people = TASON.parse<Person[]>(
+`[
+  Person({
+    "name": "John",
+    "age": 30
+  }),
+  // 可以包含注释
+  Person({
+    name: 'Jane',
+    age: 25,
+  }),
+]`);
+
+```
+
+### 序列化
+
+```typescript
+import TASON from 'tason';
+
+const people = [
+  new Person("John", 30),
+  new Person("Jane", 25),
+];
+
+console.log(TASON.stringify(people));
+
+```
+
 ## 内置类型
 
 ### 整数和浮点数类型
