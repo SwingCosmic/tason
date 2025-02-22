@@ -1,13 +1,16 @@
 import TASONSerializer from "./TASONSerializer";
+import TASONTypeRegistry from "./TASONTypeRegistry";
 import { Types } from "./types";
 
-export interface TASON extends TASONSerializer {
+export interface TASONStatic extends TASONSerializer {
   Serializer: typeof TASONSerializer;
   Types: typeof Types;
+  Registry: typeof TASONTypeRegistry;
 }
 
-const TASONStatic: TASON = new TASONSerializer() as any;
-TASONStatic.Serializer = TASONSerializer;
-TASONStatic.Types = Types;
+const TASON: TASONStatic = new TASONSerializer() as any;
+TASON.Serializer = TASONSerializer;
+TASON.Types = Types;
+TASON.Registry = TASONTypeRegistry;
 
-export default TASONStatic;
+export default TASON;
