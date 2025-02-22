@@ -1,12 +1,13 @@
 {
   "name": "tason",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Typed Another Scriptable Object Notation",
   "type": "module",
+  "keywords": ["json", "json5", "typescript","json-like", "serialization", "parser", "antlr"],
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "generate": " cd src/grammar && antlr4 -Dlanguage=TypeScript TASON.g4",
+    "generate": "cd src/grammar && antlr4 -Dlanguage=TypeScript TASON.g4",
     "build": "tsc && tsc-alias",
     "test": "jest"
   },
@@ -14,6 +15,10 @@
     "lib"
   ],
   "author": "LoveKicher",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SwingCosmic/tason.git"
+  },
   "license": "MIT",
   "devDependencies": {
     "@jest/globals": "^29.7.0",

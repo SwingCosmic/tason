@@ -1,5 +1,7 @@
 # TASON
 
+![npm](https://img.shields.io/npm/v/tason?color=green)
+
 TASON (Typed Another Scriptable Object Notation) 是一种类型化的对象表示语法，可以用于序列化和反序列化数据。
 
 
@@ -78,9 +80,21 @@ TASON类型包括两大类：标量类型(Scalar)和对象类型(Object)。
 ## 使用
 
 主要的类为`TASONSerializer`，提供了`parse`和`stringify`方法。
-该类的构造函数支持传递一些参数来控制序列化和反序列化的行为，例如是否允许重复的对象键，是否反序列化对象为无prototype的对象等。
+该类的构造函数支持传递一些参数来控制序列化和反序列化的行为，例如是否允许重复的对象键，缩进级别，最大嵌套层次等。
 
-包的默认导出对象`TASON`是具有合理参数的`TASONSerializer`默认实例，可以直接使用。
+包的默认导出对象`TASON`是具有合理默认参数的`TASONSerializer`实例，可以直接使用。
+
+### 安装
+
+```bash
+npm install tason
+# or
+yarn add tason
+# or
+pnpm add tason
+```
+
+注意 `tason` 仅支持 ESM，因此你的项目如果在前端使用，需要一个模块打包器如 `vite`、`webpack`等；如果在node.js使用，需要原生支持ESM导入
 
 ### 反序列化
 
@@ -132,6 +146,8 @@ console.log(TASON.stringify(people));
 ```
 
 ## 内置类型
+
+内置类型的支持正在补充中
 
 ### 整数和浮点数类型
 
