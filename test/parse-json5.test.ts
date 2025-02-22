@@ -44,19 +44,27 @@ describe("JSON5 兼容性测试", () => {
   });
 
   test("number", () => {
-    expect(TASON.parse("[0, 1, -1, 1.5, -1.5]")).toEqual([0, 1, -1, 1.5, -1.5]);
+
+    expect(TASON.parse("[0, +1, -1, 1.5, -1.5]")).toEqual([0, 1, -1, 1.5, -1.5]);
+    // HACK: jest认为0 != -0
+    expect(TASON.parse("-0") === 0).toBe(true);
     expect(TASON.parse("[.01, 10., -.01, -10.]")).toEqual([0.01, 10, -0.01, -10]);
     expect(TASON.parse("[1e8, -1.2e5, 2e-5, 2e0]")).toEqual([1e8, -1.2e5, 2e-5, 2]);
     expect(TASON.parse("[NaN, -NaN, Infinity, -Infinity]")).toEqual([NaN, NaN, Infinity, -Infinity]);
-    expect(TASON.parse("[0b101010, 0o12345, 0xAbcd3Ef]")).toEqual([0b101010, 0o12345, 0xAbcd3Ef]);
+    expect(TASON.parse("[-0b101010, 0o12345, 0xAbcd3Ef]")).toEqual([-0b101010, 0o12345, 0xAbcd3Ef]);
     // 不允许0开头的八进制数字
     expect(() => TASON.parse("012345")).toThrow();
     expect(() => TASON.parse("-0372.1")).toThrow();
+
+    
+    expect(() => TASON.parse("0Xab3f")).toThrow();
+    expect(() => TASON.parse("0O443")).toThrow();
+    expect(() => TASON.parse("0B110")).toThrow();
   });
 
   test("array", () => {
     expect(TASON.parse("[ \n]")).toEqual([]);
-    expect(TASON.parse("[\n1, \t'2'\v, \r{}]")).toEqual([1, '2', {}]);
+    expect(TASON.parse("[\n1, \t'2', \r{}]")).toEqual([1, '2', {}]);
     expect(TASON.parse("[BigInt('-1'), [[3, [4, ]], ], ]")).toEqual([-1n, [[3, [4]]]]);
 
   });
@@ -65,7 +73,7 @@ describe("JSON5 兼容性测试", () => {
     expect(TASON.parse(`{ \n}`)).toEqual({});
     expect(TASON.parse(`{"啊":{'b^$\\"':{"\\x0f": [666,],"🦶\uD83D\uDE0B": "👍"},},}`))
       .toEqual({ 啊: {'b^$"': {"\x0f": [666], "🦶😋": "👍"}}});
-    expect(TASON.parse(`{\n\t"a": 1,\n\t"b": "2"  ,\v\t"c": {}\n}`))
+    expect(TASON.parse(`{\n\t"a": 1,\n\t"b": "2"  ,\t"c": {}\n}`))
       .toEqual({ a: 1, b: "2", c: {} });
 
     const a: any = {};
@@ -74,8 +82,9 @@ describe("JSON5 兼容性测试", () => {
     expect(Object.getPrototypeOf(b)).toEqual(Object.prototype);
     expect(b).toEqual(a);
 
-    expect(() => TASON.parse(`'{ùńîċõďë: 'No'}'`)).toThrow();
-    expect(() => TASON.parse(`'{$_: '?'}'`)).toThrow();
+    expect(() => TASON.parse(`{ùńîċõďë: 'No'}`)).toThrow();
+    expect(() => TASON.parse(`{#_: '?'}`)).toThrow();
+    expect(() => TASON.parse(`{_$_:2}`)).toThrow();
   });
 
   test("comments", () => {
@@ -83,5 +92,17 @@ describe("JSON5 兼容性测试", () => {
     expect(TASON.parse(`/* comment */[1, 2, 3]`)).toEqual([1, 2, 3]);
     expect(TASON.parse(`{/** \n * @type {a:number} \n */s: {a:1}}`)).toEqual({s: {a:1}});
     expect(TASON.parse(`[1, /* 2, // */ 3]// comment`)).toEqual([1, 3]);
+  });
+
+  test("whitespace", () => {
+    expect(() => TASON.parse(`[1, \v 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \f 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \b 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \x00 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \u2028 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \u2029 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \u200B 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \u00A0 2]`)).toThrow();
+    expect(() => TASON.parse(`[1, \u3000 2]`)).toThrow();
   })
 });

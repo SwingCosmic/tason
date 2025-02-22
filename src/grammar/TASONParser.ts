@@ -38,6 +38,7 @@ export default class TASONParser extends Parser {
 	public static readonly STRING = 19;
 	public static readonly SYMBOL = 20;
 	public static readonly NUMBER = 21;
+	public static readonly INVALID_CHAR = 22;
 	public static override readonly EOF = Token.EOF;
 	public static readonly RULE_start = 0;
 	public static readonly RULE_value = 1;
@@ -68,7 +69,7 @@ export default class TASONParser extends Parser {
                                                              "WS", "SINGLE_LINE_COMMENT", 
                                                              "MULTI_LINE_COMMENT", 
                                                              "STRING", "SYMBOL", 
-                                                             "NUMBER" ];
+                                                             "NUMBER", "INVALID_CHAR" ];
 	// tslint:disable:no-trailing-whitespace
 	public static readonly ruleNames: string[] = [
 		"start", "value", "boolean", "typeInstance", "object", "pair", "key", 
@@ -575,7 +576,7 @@ export default class TASONParser extends Parser {
 		return localctx;
 	}
 
-	public static readonly _serializedATN: number[] = [4,1,21,100,2,0,7,0,2,
+	public static readonly _serializedATN: number[] = [4,1,22,100,2,0,7,0,2,
 	1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,6,2,7,7,7,2,8,7,8,1,0,1,0,1,
 	0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,29,8,1,1,2,1,2,1,3,1,3,1,3,1,3,1,3,1,
 	3,1,3,1,3,1,3,3,3,42,8,3,1,4,1,4,1,4,1,4,5,4,48,8,4,10,4,12,4,51,9,4,1,

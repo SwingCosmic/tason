@@ -23,7 +23,7 @@ import {
 import TASONTypeRegistry from "./TASONTypeRegistry";
 import unescape from "unescape-js";
 import Decimal from "decimal.js";
-import { SerializerOptions } from "./TASONSerializer";
+import { SerializerOptions } from "./SerializerOptions";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;

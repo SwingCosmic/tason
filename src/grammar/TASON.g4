@@ -21,7 +21,7 @@ value
   | STRING          # StringValue
   | number          # NumberValue
   | boolean         # BooleanValue
-  | NULL          # NullValue
+  | NULL            # NullValue
   | typeInstance    # TypeInstanceValue
   ;
 
@@ -101,3 +101,6 @@ fragment EXP: [Ee] SYMBOL? DEC+;       // e.g., e2, +e3, -e1
 //#region
 
 
+INVALID_CHAR: . {
+  throw new Error(`Invalid character: '${this.text}'`);
+};

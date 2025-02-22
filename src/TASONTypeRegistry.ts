@@ -54,4 +54,16 @@ export default class TASONTypeRegistry {
       return instance;
     }
   }
+
+  tryGetTypeInfo(value: object): TASONTypeInfo<any> & { name: string } | undefined {
+    for (const entry of this.types.entries()) {
+      if (value instanceof entry[1].ctor) {
+        return {
+          ...entry[1],
+          name: entry[0],
+        };
+      }
+    }
+    return undefined;
+  }
 }
