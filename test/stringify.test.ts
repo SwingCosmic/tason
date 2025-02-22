@@ -58,7 +58,7 @@ describe("stringify", () => {
       User({
         name: "bar",
         friends: []
-      }),
+      })
     ]
   }),
   "嗯嗯嗯啊啊啊": [

@@ -101,6 +101,7 @@ export class TASONGenerator {
   }
 
   ObjectValue(obj: Record<string, any>) {
+    debugger
     if (typeof obj.toJSON === "function") {
       return this.Value(obj.toJSON())!;
     } else if (typeof obj.toTASON === "function") {
@@ -153,11 +154,7 @@ export class TASONGenerator {
       if (type.serialize) {
         arg = type.serialize(value);
       }
-      this.indentLevel--;
-      {
-        argStr = this.ObjectValue(arg);
-      }
-      this.indentLevel++;
+      argStr = this.ObjectValue(arg);
     }
     return `${type.name}(${argStr})`;
   }
@@ -172,6 +169,6 @@ export class TASONGenerator {
   private indent() {
     return this.options.indent === false
       ? ""
-      : " ".repeat((this.indentLevel + 1) * this.options.indent);
+      : " ".repeat(this.indentLevel * this.options.indent);
   }
 }
