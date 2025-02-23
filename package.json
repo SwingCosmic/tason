@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "0.5.4",
+  "version": "0.6.3",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
   "keywords": ["json", "json5", "typescript","json-like", "serialization", "parser", "antlr"],

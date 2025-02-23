@@ -73,9 +73,11 @@ describe("JSON5 兼容性测试", () => {
     expect(TASON.parse(`{ \n}`)).toEqual({});
     expect(TASON.parse(`{"啊":{'b^$\\"':{"\\x0f": [666,],"🦶\uD83D\uDE0B": "👍"},},}`))
       .toEqual({ 啊: {'b^$"': {"\x0f": [666], "🦶😋": "👍"}}});
-    expect(TASON.parse(`{\n\t"a": 1,\n\t"b": "2"  ,\t"c": {}\n}`))
-      .toEqual({ a: 1, b: "2", c: {} });
+    expect(TASON.parse(`{\n\t"a": BigInt('-1'),\n\t"b": "2"  ,\t"c": {}\n}`))
+      .toEqual({ a: -1n, b: "2", c: {} });
 
+    // 虽然我不知道下面这个测试有什么意义，但JSON5官方加了可能是有用吧，
+    // 能够证明它没有使用js解析从而避免通过__proto__设置原型？
     const a: any = {};
     a.__proto__ = 42;
     const b = TASON.parse('{"__proto__":42}');

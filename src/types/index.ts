@@ -1,16 +1,19 @@
-import { defineType } from "./TASONTypeInfo";
+import { defineType, TASONTypeInfo } from "./TASONTypeInfo";
+import { defineNumbers } from "./numbers";
+import { SymbolTypeInfo } from "./Symbol";
 
 
 export const unsafeTypes = ["Symbol"];
 
 export const ScalarTypes = {
+  ...defineNumbers(),
   Date: defineType({
     kind: "scalar",
     ctor: Date,
     serialize: (value) => value.toISOString(),
     deserialize: (value) => {
       const date = new Date(value);
-      if (isNaN(date.getTime())) {
+      if (Number.isNaN(date.getTime())) {
         throw new TypeError(`Invalid Date: ${value}`);
       }
       return date;
@@ -27,7 +30,7 @@ export const ScalarTypes = {
     ctor: RegExp,
     serialize: (value) => value.toString(),
     deserialize: (value) => {
-      const match = value.match(/^\/(.*)\/([gimsuy]*)$/);
+      const match = value.match(/^\/(.+)\/([gimsuy]*)$/);
       if (match) {
         return new RegExp(match[1], match[2]);
       } else {
@@ -35,19 +38,7 @@ export const ScalarTypes = {
       }
     },
   }),
-  Symbol: defineType<symbol>({
-    kind: "scalar",
-    ctor: Symbol as any,
-    serialize: (value) => value.toString(),
-    deserialize: (value) => {
-      const match = value.match(/^Symbol\((.*)\)$/);
-      if (match) {
-        return Symbol.for(match[1]);
-      } else {
-        throw new TypeError(`Invalid Symbol: ${value}`);
-      }
-    }
-  })
+  Symbol: SymbolTypeInfo,
 };
 
 export const ObjectTypes = {};

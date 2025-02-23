@@ -101,7 +101,6 @@ export class TASONGenerator {
   }
 
   ObjectValue(obj: Record<string, any>) {
-    debugger
     if (typeof obj.toJSON === "function") {
       return this.Value(obj.toJSON())!;
     } else if (typeof obj.toTASON === "function") {
