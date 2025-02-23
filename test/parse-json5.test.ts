@@ -20,10 +20,15 @@ describe("JSON5 兼容性测试", () => {
     expect(TASON.parse(`'\\'test\\''`)).toEqual("'test'");
     expect(TASON.parse(`"\\"test\\""`)).toEqual('"test"');
 
-    // js不需要转义正斜杠'/'，因此'\\/'转义后仍为原样，这和JSON5将'\\/'转义为'/'不一样
-    const i = `'\\\\\\b\\f\\n\\r\\t\\v\\0\\x0f\\u01fF\\u2028\\u2029\\'\\"\\/'`;
-    const o = `\\\b\f\n\r\t\v\0\x0f\u01FF\u2028\u2029'"\\/`;
+    const i = `'\\\\\\b\\f\\n\\r\\t\\v\\0\\x0f\\u01fF\\u2028\\u2029\\'\\"'`;
+    const o = `\\\b\f\n\r\t\v\0\x0f\u01FF\u2028\u2029'"`;
     expect(TASON.parse(i)).toEqual(o);
+    
+    
+    // js不需要转义正斜杠'/'，因此'\\/'转义将报错，这和JSON5将'\\/'转义为'/'不一样
+    expect(() => TASON.parse('"\\/"')).toThrow();
+    expect(TASON.parse('"\\\\/"')).toEqual('\\/');
+
 
     expect(TASON.parse(`'🐔鈮钛镁😓'`)).toEqual(
       `\uD83D\uDC14\u922E\u949B\u9541\uD83D\uDE13`

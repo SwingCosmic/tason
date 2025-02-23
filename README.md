@@ -35,7 +35,7 @@ TASON (Type-Augmented Serialization Object Notation，发音`/ˈtæsən/`) 是�
   * ✅ `\b \f \n \r \t \v \0 \' \"`
   * ⚠️ js支持 `\u{XXXX}` 形式的Unicode字符转义，但这和`\uXXXX`作用完全相同并且更长，故被排除以简化语法
   * ❌ 不支持转义行尾换行符，从而让字符串跨域多行。TASON主要面向数据传输而不是配置文件，在跨平台情况下检查换行符采用的是CRLF还是LF十分困难
-  * ❌ 不支持转义`/`，在大部分语言中正斜杠都无需转义。即使作为参数传给内置的`RegExp`标量类型，也无需转义
+  * ⚠️ 不支持转义`/`，在大部分语言中正斜杠都无需转义。即使作为参数传给内置的`RegExp`标量类型，也无需转义
 * array: 数组
   * ✅ 可以有尾随逗号
   * ✅ 支持各种可迭代对象。例如在JavaScript中指`Iterable<T>`， C#中指`IEnumerable<T>`
