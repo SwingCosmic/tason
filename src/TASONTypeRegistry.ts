@@ -16,12 +16,19 @@ export default class TASONTypeRegistry {
   registerType<T>(name: string, typeInfo: TASONTypeInfo<T>) {
     this.types.set(name, typeInfo);
   }
+  registerTypeAlias(name: string, originName: string) {
+    const type = this.getType(originName);
+    if (!type) {
+      throw new Error(`Type '${originName}' does not exist`);
+    }
+    this.types.set(name, type);
+  }
 
   getType<T>(name: string): TASONTypeInfo<T> | undefined {
     return this.types.get(name);
   }
 
-  createInstance<T>(type: string | TASONTypeInfo<T>, value: string | object): T {
+  createInstance<T>(type: string | TASONTypeInfo<T>, arg: string | object): T {
     if (typeof type === "string") {
       type = this.getType(type)!;
     }
@@ -31,28 +38,58 @@ export default class TASONTypeRegistry {
     }
 
     if (type.kind === "scalar") {
-      if (typeof value !== "string") {
+      if (typeof arg !== "string") {
         throw new Error(`Scalar type requires string argument`);
       }
 
       if (type.deserialize) {
-        return type.deserialize(value);
+        return type.deserialize(arg);
       }
-      return new type.ctor(value);
+      return new type.ctor(arg);
     } else {
-      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      if (typeof arg !== "object" || arg === null || Array.isArray(arg)) {
         throw new Error(`Object type requires object argument`);
       }
 
       if (type.deserialize) {
-        return type.deserialize(value as any);
+        return type.deserialize(arg as any);
       }
       const instance = new type.ctor() as any;
-      for (const key of Object.keys(value)) {
-        instance[key] = (value as any)[key];
+      for (const key of Object.keys(arg)) {
+        instance[key] = (arg as any)[key];
       }
       return instance;
     }
+  }
+
+  serializeToArg<T>(type: string | TASONTypeInfo<T>, value: T): string | object {
+    if (typeof type === "string") {
+      type = this.getType(type)!;
+    }
+
+    if (!type) {
+      throw new Error(`Unknown type: ${type}`);
+    }
+
+    let arg: any;
+    if (type.kind === "scalar") {
+      if (type.serialize) {
+        arg = type.serialize(value);
+      } else {
+        arg = String(value);
+      }
+    } else {
+      arg = value;
+      if (type.serialize) {
+        arg = type.serialize(value);
+      } else if (typeof (value as any).toJSON === "function") {
+        arg = (value as any).toJSON();
+      } else if (typeof (value as any).toTASON === "function") {
+        arg = (value as any).toTASON();
+      } 
+    }
+
+    return arg;
   }
 
   tryGetTypeInfo(value: object): TASONTypeInfo<any> & { name: string } | undefined {

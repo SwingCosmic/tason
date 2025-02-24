@@ -191,12 +191,12 @@ export class Int64 extends NumberBase<bigint> {
   static readonly UNSIGNED: boolean = false;
 }
 
-export class Float extends NumberBase<number> {
+export class Float32 extends NumberBase<number> {
   // 浮点数永不溢出
   clampValue(value: number): [boolean, number] {
-    if (value < Float.MIN_VALUE) {
+    if (value < Float32.MIN_VALUE) {
       value = -Infinity;
-    } else if (value > Float.MAX_VALUE) {
+    } else if (value > Float32.MAX_VALUE) {
       value = Infinity;
     }
     return [true, value];
@@ -215,7 +215,7 @@ export class Float extends NumberBase<number> {
   static readonly UNSIGNED: boolean = false;
 }
 
-export class Double extends NumberBase<number> {
+export class Float64 extends NumberBase<number> {
   clampValue(value: number): [boolean, number] {
     return [true, value];
   }
@@ -266,8 +266,8 @@ const Numbers = {
   Int16: Int16 as INumberConstructor<Int16, number>,
   Int32: Int32 as INumberConstructor<Int32, number>,
   Int64: Int64 as INumberConstructor<Int64, bigint>,
-  Float: Float as INumberConstructor<Float, number>,
-  Double: Double as INumberConstructor<Double, number>,
+  Float32: Float32 as INumberConstructor<Float32, number>,
+  Float64: Float64 as INumberConstructor<Float64, number>,
   Decimal128: Decimal128 as INumberConstructor<Decimal128, Decimal>,
 };
 

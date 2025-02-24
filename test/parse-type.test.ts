@@ -47,7 +47,7 @@ describe("内置类型解析测试", () => {
     expect(TASON.parse(`Date("1919-08-10T11:45:14+09:00")`))
       .toEqual(new Date("1919-08-10T11:45:14+09:00"));
 
-    expect(() =>TASON.parse(`Date("34543-87-18")`)).toThrow();
+    expect(() => TASON.parse(`Date("34543-87-18")`)).toThrow();
   });
 
 

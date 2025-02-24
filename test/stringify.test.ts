@@ -66,4 +66,18 @@ describe("stringify", () => {
 
     expect(ret).toEqual(obj1Str.replaceAll(/  /g, "    "));
   });
+
+  test("max depth", () => {
+    const s = new TASON.Serializer({
+      maxDepth: 128,
+    });
+
+    let user = new User("User0", []);
+    for (let i = 1; i < 100; i++) {
+      user = new User("User" + i, [user]);
+    }
+
+    expect(() => TASON.stringify(user)).toThrow();
+    expect(() => s.stringify(user)).not.toThrow();
+  });
 });

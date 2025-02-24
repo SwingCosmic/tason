@@ -142,18 +142,11 @@ export class TASONGenerator {
 
   TypeInstanceValue(value: any, type: TASONTypeInfo<any> & { name: string }) {
     let argStr: string;
+    let arg = this.registry.serializeToArg(type, value);
     if (type.kind === "scalar") {
-      if (type.serialize) {
-        argStr = JSON.stringify(type.serialize(value));
-      } else {
-        argStr = JSON.stringify(String(value));
-      }
+      argStr = this.StringValue(arg as string);
     } else {
-      let arg = value;
-      if (type.serialize) {
-        arg = type.serialize(value);
-      }
-      argStr = this.ObjectValue(arg);
+      argStr = this.ObjectValue(arg as object);
     }
     return `${type.name}(${argStr})`;
   }
