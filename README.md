@@ -151,33 +151,35 @@ console.log(TASON.stringify(people));
 
 ### 整数和浮点数类型
 
-* Byte : 8位无符号整数
-* Int16 : 16位有符号整数
-* Int32 : 32位有符号整数
-* Int64 : 64位有符号整数
-* Float : 32位浮点数
-* Double : 64位浮点数
-* Decimal128 : 128位有符号十进制数
-* BigInt : 无限精度整数
+* ✅ Byte : 8位无符号整数
+* ✅ Int16 : 16位有符号整数
+* ✅ Int32 : 32位有符号整数
+* ✅ Int64 : 64位有符号整数
+* ✅ Float32 : 32位浮点数
+* ✅ Float64 : 64位浮点数
+* ✅ Decimal128 : 128位有符号十进制数
+* ✅ BigInt : 无限精度整数
 
-不提供Byte以外的无符号整数类型，因为很多语言如Java都不支持，并且被.NET标记为CLS不兼容
+不提供Byte以外的无符号整数类型，以及8位有符号整数。
+很多语言如Java不支持无符号整数类型，并且被.NET标记为CLS不兼容。
+在数据传输上，无符号类型可以很容易地使用有符号类型进行无损转换。
 
 ### 时间日期
 
-* Date : 时间日期
-* Time : 时间
-* Timestamp : UTC时间戳（单位为秒）
+* ✅ Date : 时间日期，使用JavaScript的`Date`对象。时区取决于创建时是否指定了时区标记。
+* Time : 时间，时区取决于创建时是否指定了时区标记。
+* Timestamp : UTC时间戳（单位为秒），和时区无关。
 
 ### 其它内置类型
 
-* RegExp: 正则表达式，采用PCRE语法，并用js风格的/.../包裹起来，后面跟上正则表达式选项字符
+* ✅ RegExp: 正则表达式，采用PCRE语法，并用js风格的/.../包裹起来，后面跟上正则表达式选项字符
 * UUID : UUID/GUID，横杠分隔的形式
-* JSON类型: 包括JSON, JSONObject和JSONArray。虽然TASON完全支持JSON的语法，但在某些情况下仍然需要使用目标语言所使用的专用JSON类型，
+* ✅ JSON类型: 包括`JSON`, `JSONObject`和`JSONArray`。虽然TASON完全支持JSON的语法，但在某些情况下仍然需要使用目标语言所使用的专用JSON类型，
 例如Java的JSONObject(fastjson)，以便于更好地控制序列化反序列化过程
-* Binary : 二进制数据，使用base64编码或者HEX字符串
+* Buffer : 二进制数据，使用base64编码或者HEX字符串
 * 哈希值类型：包括MD5, SHA1, SHA256, CRC32等常见哈希算法，HEX字符串
 
 ### 不安全的类型
 
-* Symbol: 符号，使用js风格的`Symbol('name')`。因为其设计上的特殊性，虽然Symbol可以被序列化和反序列化，但不能保证反序列化后的Symbol对象与原始Symbol对象是同一个
+* ✅ Symbol: 符号，使用js风格的`Symbol('name')`。因为其设计上的特殊性，虽然Symbol可以被序列化和反序列化，但不能保证反序列化后的Symbol对象与原始Symbol对象是同一个
 * 字典类型：如js和java的Map，C#的Dictionary等。仅支持键为字符串，使用非字符串的键会导致未定义的行为，可能抛出异常，也可能丢弃键值对

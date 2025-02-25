@@ -1,6 +1,7 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
 import { Byte, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
+import { JSON as _JSON } from "@/types/json";
 
 
 describe("内置类型解析测试", () => {
@@ -63,5 +64,17 @@ describe("内置类型解析测试", () => {
 
     expect(() => TASON.parse(`Symbol('Symbol.iterator')`)).toThrow();
 
+  });
+
+  test("JSON", () => {
+    expect(TASON.parse<_JSON>(` JSON('null')`))
+      .toEqual(new _JSON(`null`));
+    expect(TASON.parse<_JSON>(`JSONArray('[1,2,3]')`).toJSON())
+      .toEqual(new _JSON(`[1,2,3]`).toJSON());
+    expect(TASON.parse<_JSON>(`JSONObject('  \\r\\n{ \\"嗯嗯嗯\\": 1}')`).toJSON())
+      .toEqual(new _JSON(`{"嗯嗯嗯":1}`).toJSON());
+
+    expect(() => TASON.parse(`JSONObject('[]')`)).toThrow();
+    expect(() => TASON.parse(`JSONArray('"666"')`)).toThrow();
   });
 });

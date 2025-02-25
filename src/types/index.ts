@@ -1,12 +1,13 @@
 import { defineType, TASONTypeInfo } from "./TASONTypeInfo";
 import { defineNumbers } from "./numbers";
 import { SymbolTypeInfo } from "./Symbol";
-
+import JSONTypes from "./json";
 
 export const unsafeTypes = ["Symbol"];
 
 export const ScalarTypes = {
   ...defineNumbers(),
+  ...JSONTypes,
   Date: defineType({
     kind: "scalar",
     ctor: Date,
