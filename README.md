@@ -28,13 +28,15 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
 ### 推荐场景
 
 1. 低代码平台、企业数据中台、数据仓库、仪表盘、BI分析等所使用的高度动态化查询结果，可以同时实现强类型，自描述和人类可读的数据格式。
-2. 含有动态类型的非关系型数据库如MongoDB的无损数据查看和保存。事实上，MongoDB管理工具展现数据的格式和TASON非常相似，也是其灵感来源之一
+2. 含有动态类型的非关系型数据库如MongoDB的无损数据查询和保存。MongoDB支持在查询中使用复杂类型，
+如果使用传统基于JSON的API接口传递参数，例如传递字符串形式的Date, Int64和RegExp，可能会在查询动态结构文档时，类型不匹配而查询不到数据。
+事实上，MongoDB管理工具展现数据的格式和TASON非常相似，也是其灵感来源之一
 3. 将接口数据反序列化为JavaScript类，从而简化JavaScript基于实体类的跨平台/同构(isomorphic)应用开发
-4. 配合SOAP, GraphQL等已有的强类型数据和服务规范，推出简化的Web API
 
 ### 其它可用场景
 
 1. 编写强类型的配置文件，直接获得配置对象实例，解决JSON弱类型带来的反序列化复杂性
+2. 配合SOAP, GraphQL等已有的强类型数据和服务规范，推出简化的Web API
 
 ## 基本类型
 
@@ -160,13 +162,17 @@ const people = TASON.parse<Person[]>(
 
 ```typescript
 import TASON from 'tason';
+const serializer = new TASON.Serializer({
+  indent: 2, //指定缩进级别为2个空格
+  registry: TASON.registry.clone(), // 复用全局实例的类型注册表
+});
 
 const people = [
   new Person("John", 30),
   new Person("Jane", 25),
 ];
 
-console.log(TASON.stringify(people));
+console.log(serializer.stringify(people));
 
 ```
 

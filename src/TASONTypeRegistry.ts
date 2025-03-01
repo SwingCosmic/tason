@@ -14,9 +14,22 @@ export default class TASONTypeRegistry {
     }
   }
 
+  /** 克隆一个具有相同注册类型的TASONTypeRegistry，以进行独立的操作 */
+  clone() {
+    const ret = new TASONTypeRegistry();
+    for (const [name, type] of this.types) {
+      ret.types.set(name, type);
+    }
+    return ret;
+  }
+
+
+  /** 注册一个类型 */
   registerType<T>(name: string, typeInfo: TASONTypeInfo<T>) {
     this.types.set(name, typeInfo);
   }
+
+  /** 注册一个类型别名，指向已有的类型 */
   registerTypeAlias(name: string, originName: string) {
     const type = this.getType(originName);
     if (!type) {
@@ -25,10 +38,12 @@ export default class TASONTypeRegistry {
     this.types.set(name, type);
   }
 
+  /** 根据名称获取类型信息 */
   getType<T>(name: string): TASONTypeInfo<T> | undefined {
     return this.types.get(name);
   }
 
+  /** 根据初始化参数创建指定类型的实例 */
   createInstance<T>(type: string | TASONTypeInfo<T>, arg: string | object): T {
     if (typeof type === "string") {
       type = this.getType(type)!;
@@ -63,6 +78,7 @@ export default class TASONTypeRegistry {
     }
   }
 
+  /** 将指定类型的实例序列化为其初始化参数 */
   serializeToArg<T>(type: string | TASONTypeInfo<T>, value: T): string | object {
     if (typeof type === "string") {
       type = this.getType(type)!;
@@ -93,6 +109,7 @@ export default class TASONTypeRegistry {
     return arg;
   }
 
+  /** 尝试获取指定对象的类型信息和名称。如果未注册，或者不是object，则返回 undefined */
   tryGetTypeInfo(value: object): TASONTypeInfo<any> & { name: string } | undefined {
     let name = getDeclaredTypeName(value);
     if (name) {

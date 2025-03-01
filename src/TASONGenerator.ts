@@ -117,7 +117,8 @@ export class TASONGenerator {
         if (valueStr === undefined) {
           continue;
         }
-        pairs.push(`${this.indent()}${keyStr}: ${valueStr}`);
+        const space = this.options.indent === false ? "" : " ";
+        pairs.push(`${this.indent()}${keyStr}:${space}${valueStr}`);
       }
     }
     this.indentLevel--;

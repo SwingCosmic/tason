@@ -49,9 +49,9 @@ describe("stringify", () => {
     });
 
     expect(s.stringify(obj1)).toEqual(
-      `{a: "dfgfd",` +
-        `c: User({name: "ss",friends: [User({name: "foo",friends: []}),User({name: "bar",friends: []})]}),` +
-        `"嗯嗯嗯啊啊啊": [BigInt("4565846")]}`,
+      `{a:"dfgfd",` +
+        `c:User({name:"ss",friends:[User({name:"foo",friends:[]}),User({name:"bar",friends:[]})]}),` +
+        `"嗯嗯嗯啊啊啊":[BigInt("4565846")]}`,
     );
   });
 
@@ -100,6 +100,6 @@ describe("stringify", () => {
       ctor: User,
     });
     expect(s.stringify(new AnotherUser("foo", [new AnotherUser("bar")])))
-      .toEqual(`User({name: "foo",friends: [User({name: "bar",friends: []})]})`);
+      .toEqual(`User({name:"foo",friends:[User({name:"bar",friends:[]})]})`);
   });
 });

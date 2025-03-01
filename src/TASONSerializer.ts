@@ -49,6 +49,7 @@ export default class TASONSerializer {
     this.visitor = new TASONVisitor(this.registry, this.options);
   }
 
+  /** 将TASON字面量字符串反序列化为对应的值 */
   parse<T = any>(text: string): T {
     const chars = CharStreams.fromString(text);
     const lexer = new TASONLexer(chars);
@@ -60,8 +61,12 @@ export default class TASONSerializer {
     return this.visitor.visit(tree);
   }
 
-  stringify(value: any): string {
-    const generator = new TASONGenerator(this.registry, this.options);
+  /** 将JavaScript变量序列化为TASON字符串 */
+  stringify(value: any, indent?: number | false): string {
+    const generator = new TASONGenerator(this.registry, {
+      ...this.options,
+      indent: indent ?? this.options.indent,
+    });
     return generator.generate(value);
   }
 
