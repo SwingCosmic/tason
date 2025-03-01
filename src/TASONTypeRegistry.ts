@@ -1,4 +1,5 @@
 import { Types, unsafeTypes } from "./types";
+import { getDeclaredTypeName } from "./types/metadata";
 import { TASONTypeInfo } from "./types/TASONTypeInfo";
 
 export default class TASONTypeRegistry {
@@ -93,6 +94,17 @@ export default class TASONTypeRegistry {
   }
 
   tryGetTypeInfo(value: object): TASONTypeInfo<any> & { name: string } | undefined {
+    let name = getDeclaredTypeName(value);
+    if (name) {
+      const type = this.types.get(name);
+      if (!type) {
+        throw new Error(`Object declared its type "${name}" in metadata, which is not registered in the registry.`);
+      }
+      return {
+        name,
+        ...type,
+      };
+    }
     for (const entry of this.types.entries()) {
       if (value instanceof entry[1].ctor) {
         return {

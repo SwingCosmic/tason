@@ -17,33 +17,49 @@ export interface INumberConstructor<T extends INumber<N>, N> {
 
 type AllowRadix = 2 | 8 | 16 | 10;
 
+const prefixes = {
+  "0b": 2,
+  "0o": 8,
+  "0x": 16,
+} as const;
+
+/**
+ * 解析十进制数，二进制、八进制、十六进制整数，返回进制和去除进制前缀的数值
+ * 该方法比TASON数字更加严格，不允许使用`+`前缀，不允许前缀和后缀小数点，不允许非十进制小数
+ * @param n 要解析的数字字符串
+ */
 function getNumberWithRadix(n: string): { value: string; radix: AllowRadix } {
-  let original = n;
-  let isNegative = false;
-  if(n.startsWith("-")) {
-    n = n.slice(1);
-    isNegative = true;
+
+  // 匹配带前缀的数字（二进制、八进制、十六进制）
+  const prefixedRegex = /(-?)(0[box])([0-9a-fA-F]+)/;
+  // 匹配十进制数字（包括小数和科学计数法）
+  const decimalRegex = /-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?/;
+
+  let match = prefixedRegex.exec(n);
+  if (match) {
+    const sign = match[1];
+    const prefix = match[2];
+    const digits = match[3];
+
+    const radix = prefixes[prefix.toLowerCase() as keyof typeof prefixes];
+    if (!radix) throw new TypeError("Invalid number prefix");
+
+    if (radix === 2 && !/^[01]+$/.test(digits))
+      throw new TypeError("Invalid binary number");
+    if (radix === 8 && !/^[0-7]+$/.test(digits))
+      throw new TypeError("Invalid octal number");
+    if (radix === 16 && !/^[0-9a-fA-F]+$/.test(digits))
+      throw new TypeError("Invalid hexadecimal number");
+
+    return { value: sign + digits, radix: radix };
   }
 
-  const prefix = n.slice(0, 2);
-  let radix: AllowRadix = 10;
-  let value = (isNegative ? "-" : "")  + n.substring(2);
-  switch (prefix) {
-    case "0b":
-      radix = 2;
-      break;
-    case "0o":
-      radix = 8;
-      break;
-    case "0x":
-      radix = 16;
-      break;
-    default:
-      radix = 10;
-      value = original;
-      break;
+  match = decimalRegex.exec(n);
+  if (match) {
+    return { value: n, radix: 10 };
   }
-  return { value, radix };
+
+  throw new TypeError("Invalid number format");
 }
 
 function checkDigit(value: string): true {
@@ -209,8 +225,8 @@ export class Float32 extends NumberBase<number> {
     return parseFloat(value);
   }
 
-  static readonly MIN_VALUE: number = -3.4028235e+38;
-  static readonly MAX_VALUE: number = 3.4028235e+38;
+  static readonly MIN_VALUE: number = -3.4028235e38;
+  static readonly MAX_VALUE: number = 3.4028235e38;
   static readonly BYTE_SIZE: number = 4;
   static readonly UNSIGNED: boolean = false;
 }
@@ -258,7 +274,6 @@ export class Decimal128 extends NumberBase<Decimal> {
   static readonly MAX_VALUE: Decimal = new Decimal((2n ** 96n - 1n).toString());
   static readonly BYTE_SIZE: number = 16;
   static readonly UNSIGNED: boolean = false;
-
 }
 
 const Numbers = {
@@ -274,13 +289,15 @@ const Numbers = {
 export default Numbers;
 
 type NumbersType = typeof Numbers;
-export function defineNumbers(): { [K in keyof NumbersType]: TASONTypeInfo<NumbersType[K]> } {
+export function defineNumbers(): {
+  [K in keyof NumbersType]: TASONTypeInfo<NumbersType[K]>;
+} {
   const ret: any = {};
   for (const [name, type] of Object.entries(Numbers)) {
     ret[name] = defineType({
       kind: "scalar",
       ctor: type as Constructor<any>,
-      serialize: (value) => value.toString(),
+      serialize: value => value.toString(),
     });
   }
   return ret;

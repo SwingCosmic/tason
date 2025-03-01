@@ -2,6 +2,7 @@ import { defineType, TASONTypeInfo } from "./TASONTypeInfo";
 import { defineNumbers } from "./numbers";
 import { SymbolTypeInfo } from "./Symbol";
 import JSONTypes from "./json";
+import { RegExpTypeInfo } from "./RegExp";
 
 export const unsafeTypes = ["Symbol"];
 
@@ -26,19 +27,7 @@ export const ScalarTypes = {
     serialize: (value) => value.toString(),
     deserialize: (value) => BigInt(value),
   }),
-  RegExp: defineType({
-    kind: "scalar",
-    ctor: RegExp,
-    serialize: (value) => value.toString(),
-    deserialize: (value) => {
-      const match = value.match(/^\/(.+)\/([gimsuy]*)$/);
-      if (match) {
-        return new RegExp(match[1], match[2]);
-      } else {
-        throw new TypeError(`Invalid RegExp: ${value}`);
-      }
-    },
-  }),
+  RegExp: RegExpTypeInfo,
   Symbol: SymbolTypeInfo,
 };
 

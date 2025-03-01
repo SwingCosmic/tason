@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
+import { TASONType } from "@/types/metadata";
 
 class User {
   name: string;
@@ -69,7 +70,7 @@ describe("stringify", () => {
 
   test("max depth", () => {
     const s = new TASON.Serializer({
-      maxDepth: 128,
+      maxDepth: 199, // 实际应该大于循环次数99的2倍，因为User类每一个实例就有一层{}和一层[]
     });
 
     let user = new User("User0", []);
@@ -79,5 +80,26 @@ describe("stringify", () => {
 
     expect(() => TASON.stringify(user)).toThrow();
     expect(() => s.stringify(user)).not.toThrow();
+  });
+
+  test("metadata", () => {
+    @TASONType("User")
+    class AnotherUser {
+      name: string;
+      friends: AnotherUser[];
+
+      constructor(name = "", friends: AnotherUser[] = []) {
+        this.name = name;
+        this.friends = friends;
+      }
+    }
+
+    const s = new TASON.Serializer({});
+    s.registry.registerType("User", {
+      kind: "object",
+      ctor: User,
+    });
+    expect(s.stringify(new AnotherUser("foo", [new AnotherUser("bar")])))
+      .toEqual(`User({name: "foo",friends: [User({name: "bar",friends: []})]})`);
   });
 });

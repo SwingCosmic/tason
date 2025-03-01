@@ -18,4 +18,13 @@ describe("内置类型序列化测试", () => {
     expect(TASON.stringify(2n ** 128n))
       .toEqual(`BigInt("340282366920938463463374607431768211456")`);
   });
+
+  test("RegExp", () => {
+    expect(TASON.stringify(/^[a-zA-Z0-9]+$/ig))
+      .toEqual(`RegExp("/^[a-zA-Z0-9]+$/gi")`);
+    
+    // 正则表达式中的 / 的转义 `\/` 在字符串中不需要
+    expect(TASON.stringify(/\/\w+\/$/))
+      .toEqual(`RegExp("//\\\\w+/$/")`);
+  })
 });

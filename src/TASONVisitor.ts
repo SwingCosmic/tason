@@ -20,7 +20,7 @@ import {
   IdentifierContext,
   StringKeyContext,
 } from "./grammar/TASONParser";
-import TASONTypeRegistry from "./TASONTypeRegistry";
+import type TASONTypeRegistry from "./TASONTypeRegistry";
 import unescape from "unescape-js";
 import Decimal from "decimal.js";
 import { SerializerOptions } from "./SerializerOptions";

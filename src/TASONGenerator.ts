@@ -1,5 +1,5 @@
 import { SerializerOptions } from "./SerializerOptions";
-import TASONTypeRegistry from "./TASONTypeRegistry";
+import type TASONTypeRegistry from "./TASONTypeRegistry";
 import { TASONTypeInfo } from "./types/TASONTypeInfo";
 
 export class TASONGenerator {

@@ -1,9 +1,17 @@
 {
   "name": "tason",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
-  "keywords": ["json", "json5", "typescript","json-like", "serialization", "parser", "antlr"],
+  "keywords": [
+    "json",
+    "json5",
+    "typescript",
+    "json-like",
+    "serialization",
+    "parser",
+    "antlr"
+  ],
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
@@ -34,6 +42,7 @@
     "antlr4": "^4.13.2",
     "decimal.js": "^10.5.0",
     "js-string-escape": "^1.0.1",
+    "reflect-metadata": "^0.2.2",
     "unescape-js": "^1.1.4"
   },
   "publishConfig": {

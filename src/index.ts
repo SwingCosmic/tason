@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 import TASONSerializer from "./TASONSerializer";
 import TASONTypeRegistry from "./TASONTypeRegistry";
 import { Types } from "./types";
