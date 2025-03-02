@@ -2,6 +2,7 @@ import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
 import { Byte, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
 import { JSON as _JSON } from "@/types/json";
+import { Buffer as _Buffer } from "@/types/Buffer";
 
 
 describe("内置类型解析测试", () => {
@@ -69,12 +70,22 @@ describe("内置类型解析测试", () => {
   test("JSON", () => {
     expect(TASON.parse<_JSON>(` JSON('null')`))
       .toEqual(new _JSON(`null`));
-    expect(TASON.parse<_JSON>(`JSONArray('[1,2,3]')`).toJSON())
-      .toEqual(new _JSON(`[1,2,3]`).toJSON());
-    expect(TASON.parse<_JSON>(`JSONObject('  \\r\\n{ \\"嗯嗯嗯\\": 1}')`).toJSON())
-      .toEqual(new _JSON(`{"嗯嗯嗯":1}`).toJSON());
+    expect(TASON.parse<_JSON>(`JSONArray('[1,2,3]')`).toJSONValue())
+      .toEqual(new _JSON(`[1,2,3]`).toJSONValue());
+    expect(TASON.parse<_JSON>(`JSONObject('  \\r\\n{ \\"嗯嗯嗯\\": 1}')`).toJSONValue())
+      .toEqual(new _JSON(`{"嗯嗯嗯":1}`).toJSONValue());
 
     expect(() => TASON.parse(`JSONObject('[]')`)).toThrow();
     expect(() => TASON.parse(`JSONArray('"666"')`)).toThrow();
   });
+
+  test("Buffer", () => {
+    expect(TASON.parse<_Buffer>(`Buffer('base64,eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')`).toArrayBuffer())
+      .toEqual(Buffer.from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "base64").buffer);
+    expect(TASON.parse<_Buffer>(`Buffer('HEX, 2E09C9650A9779F1CE8DC232881F06736C6E5E0A3236292D2679FFCE2E9F49BC')`).toNodeBuffer())
+      .toEqual(Buffer.from("2e09c9650a9779f1ce8dc232881f06736c6e5e0a3236292d2679ffce2e9f49bc", "hex"));
+    
+    expect(() => TASON.parse<_Buffer>(`Buffer('hex,\\0\\x03\\xa0\\b')`)).toThrow();
+    expect(() => TASON.parse<_Buffer>(`Buffer('base64, jdsfyjf%$@#$#')`)).toThrow();
+  })
 });

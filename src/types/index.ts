@@ -1,13 +1,14 @@
 import { defineType, TASONTypeInfo } from "./TASONTypeInfo";
-import { defineNumbers } from "./numbers";
+import NumberTypes from "./numbers";
 import { SymbolTypeInfo } from "./Symbol";
 import JSONTypes from "./json";
 import { RegExpTypeInfo } from "./RegExp";
+import { BufferTypeInfo } from "./Buffer";
 
 export const unsafeTypes = ["Symbol"];
 
 export const ScalarTypes = {
-  ...defineNumbers(),
+  ...NumberTypes,
   ...JSONTypes,
   Date: defineType({
     kind: "scalar",
@@ -21,14 +22,9 @@ export const ScalarTypes = {
       return date;
     },
   }),
-  BigInt: defineType<bigint>({
-    kind: "scalar",
-    ctor: BigInt as any,
-    serialize: (value) => value.toString(),
-    deserialize: (value) => BigInt(value),
-  }),
   RegExp: RegExpTypeInfo,
   Symbol: SymbolTypeInfo,
+  Buffer: BufferTypeInfo,
 };
 
 export const ObjectTypes = {};

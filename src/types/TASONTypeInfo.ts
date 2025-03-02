@@ -16,6 +16,8 @@ export interface TASONObjectTypeInfo<T> {
 }
 
 export type TASONTypeInfo<T> = TASONScalarTypeInfo<T> | TASONObjectTypeInfo<T>;
+
+export type TASONNamedTypeInfo<T> = TASONTypeInfo<T> & { name: string };
 export function defineType<T>(type: TASONTypeInfo<T>): TASONTypeInfo<T> {
   return type;
 }

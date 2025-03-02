@@ -29,7 +29,6 @@ const prefixes = {
  * @param n 要解析的数字字符串
  */
 function getNumberWithRadix(n: string): { value: string; radix: AllowRadix } {
-
   // 匹配带前缀的数字（二进制、八进制、十六进制）
   const prefixedRegex = /(-?)(0[box])([0-9a-fA-F]+)/;
   // 匹配十进制数字（包括小数和科学计数法）
@@ -276,7 +275,7 @@ export class Decimal128 extends NumberBase<Decimal> {
   static readonly UNSIGNED: boolean = false;
 }
 
-const Numbers = {
+export const Numbers = {
   Byte: Byte as INumberConstructor<Byte, number>,
   Int16: Int16 as INumberConstructor<Int16, number>,
   Int32: Int32 as INumberConstructor<Int32, number>,
@@ -286,12 +285,10 @@ const Numbers = {
   Decimal128: Decimal128 as INumberConstructor<Decimal128, Decimal>,
 };
 
-export default Numbers;
-
 type NumbersType = typeof Numbers;
-export function defineNumbers(): {
+function defineNumbers(): {
   [K in keyof NumbersType]: TASONTypeInfo<NumbersType[K]>;
-} {
+} & { BigInt: TASONTypeInfo<bigint> } {
   const ret: any = {};
   for (const [name, type] of Object.entries(Numbers)) {
     ret[name] = defineType({
@@ -300,5 +297,14 @@ export function defineNumbers(): {
       serialize: value => value.toString(),
     });
   }
+  ret.BigInt = defineType<bigint>({
+    kind: "scalar",
+    ctor: BigInt as any,
+    serialize: (value) => value.toString(),
+    deserialize: (value) => BigInt(value),
+  });
   return ret;
 }
+
+
+export default defineNumbers();

@@ -1,9 +1,12 @@
+import { TASONTypeDiscriminator, TypeDiscriminatorKey } from "./metadata";
 import { defineType } from "./TASONTypeInfo";
 
-export class JSON {
+export class JSON implements TASONTypeDiscriminator {
   readonly jsonString: string;
+  readonly subType: "object" | "array" | "";
   constructor(jsonString: string, subType: "object" | "array" | "" = "") {
     this.jsonString = jsonString.trim();
+    this.subType = subType;
     if (subType === "array" && !this.jsonString.startsWith("[")) {
       throw new TypeError(`value is not a valid JSONArray`);
     }
@@ -19,8 +22,16 @@ export class JSON {
     return this.jsonString;
   }
 
-  toJSON() {
+  toJSONValue() {
     return globalThis.JSON.parse(this.jsonString);
+  }
+
+  [TypeDiscriminatorKey]() {
+    return this.subType === "array"
+      ? "JSONArray"
+      : this.subType === "object"
+      ? "JSONObject"
+      : "JSON";
   }
 }
 
@@ -28,19 +39,19 @@ export default {
   JSON: defineType({
     kind: "scalar",
     ctor: JSON,
-    serialize: value => value.jsonString,
+    serialize: value => value.toString(),
     deserialize: value => new JSON(value, ""),
   }),
   JSONArray: defineType({
     kind: "scalar",
     ctor: JSON,
-    serialize: value => value.jsonString,
+    serialize: value => value.toString(),
     deserialize: value => new JSON(value, "array"),
   }),
   JSONObject: defineType({
     kind: "scalar",
     ctor: JSON,
-    serialize: value => value.jsonString,
+    serialize: value => value.toString(),
     deserialize: value => new JSON(value, "object"),
   }),
 };

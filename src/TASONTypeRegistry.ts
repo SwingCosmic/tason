@@ -1,6 +1,10 @@
 import { Types, unsafeTypes } from "./types";
-import { getDeclaredTypeName } from "./types/metadata";
-import { TASONTypeInfo } from "./types/TASONTypeInfo";
+import {
+  getDeclaredTypeName,
+  TASONTypeDiscriminator,
+  TypeDiscriminatorKey,
+} from "./types/metadata";
+import { TASONNamedTypeInfo, TASONTypeInfo } from "./types/TASONTypeInfo";
 
 export default class TASONTypeRegistry {
   private readonly types: Map<string, TASONTypeInfo<any>> = new Map();
@@ -22,7 +26,6 @@ export default class TASONTypeRegistry {
     }
     return ret;
   }
-
 
   /** 注册一个类型 */
   registerType<T>(name: string, typeInfo: TASONTypeInfo<T>) {
@@ -103,25 +106,44 @@ export default class TASONTypeRegistry {
         arg = (value as any).toJSON();
       } else if (typeof (value as any).toTASON === "function") {
         arg = (value as any).toTASON();
-      } 
+      }
     }
 
     return arg;
   }
 
   /** 尝试获取指定对象的类型信息和名称。如果未注册，或者不是object，则返回 undefined */
-  tryGetTypeInfo(value: object): TASONTypeInfo<any> & { name: string } | undefined {
+  tryGetTypeInfo(value: object): TASONNamedTypeInfo<any> | undefined {
     let name = getDeclaredTypeName(value);
     if (name) {
       const type = this.types.get(name);
       if (!type) {
-        throw new Error(`Object declared its type "${name}" in metadata, which is not registered in the registry.`);
+        throw new Error(
+          `Object declared its type "${name}" in metadata, which is not registered in the registry.`,
+        );
       }
       return {
         name,
         ...type,
       };
     }
+
+    if (typeof value === "object" && TypeDiscriminatorKey in value) {
+      const name = (value as TASONTypeDiscriminator)[TypeDiscriminatorKey]?.();
+      if (name) {
+        const type = this.types.get(name);
+        if (!type) {
+          throw new Error(
+            `Object returned its type "${name}" in type discriminator, which is not registered in the registry.`,
+          );
+        }
+        return {
+          name,
+          ...type,
+        };
+      }
+    }
+
     for (const entry of this.types.entries()) {
       if (value instanceof entry[1].ctor) {
         return {

@@ -16,6 +16,7 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
 ### 自描述强类型
 * TASON的语法包含了类型信息，不需要额外的描述文件，因此可以非常方便的进行反序列化。
 * TASON类型是语言无关的，即使是TASON内置类型，具体的实现也取决于所使用的语言，只需要语义上的一致即可
+* 支持类型判别器(discriminator)、创建类型别名和指定序列化类型，实现多态序列化、多对一反序列化、鸭子类型序列化
 
 ### 动态结构
 * TASON支持动态结构，对象可以包含任意数量的属性，或者将动态对象和固定类型对象混合使用。
@@ -207,7 +208,7 @@ console.log(serializer.stringify(people));
 * UUID : UUID/GUID，横杠分隔的形式
 * ✅ JSON类型: 包括`JSON`, `JSONObject`和`JSONArray`。虽然TASON完全支持JSON的语法，但在某些情况下仍然需要使用目标语言所使用的专用JSON类型，
 例如Java的JSONObject(fastjson)，以便于更好地控制序列化反序列化过程
-* Buffer : 二进制数据，使用base64编码或者HEX字符串
+* ✅ Buffer : 二进制数据，使用base64编码或者HEX字符串
 * 哈希值类型：包括MD5, SHA1, SHA256, CRC32等常见哈希算法，HEX字符串
 
 ### 不安全的类型

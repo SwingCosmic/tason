@@ -14,3 +14,10 @@ export function getDeclaredTypeName(value: object): string | undefined {
   }
   return Reflect.getMetadata(TASONTypeNameKey, value.constructor);
 }
+
+export const TypeDiscriminatorKey: unique symbol = Symbol.for("TASON.discriminator");
+
+/** 类型判别器，让类实例支持多态序列化 */
+export interface TASONTypeDiscriminator {
+  [TypeDiscriminatorKey]: () => string;
+}

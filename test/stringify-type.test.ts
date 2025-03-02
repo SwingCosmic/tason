@@ -1,7 +1,8 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
 import { Byte, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
-
+import { JSON as _JSON } from "@/types/json";
+import { Buffer as _Buffer } from "@/types/Buffer";
 
 describe("内置类型序列化测试", () => {
   test("numbers", () => {
@@ -26,5 +27,23 @@ describe("内置类型序列化测试", () => {
     // 正则表达式中的 / 的转义 `\/` 在字符串中不需要
     expect(TASON.stringify(/\/\w+\/$/))
       .toEqual(`RegExp("//\\\\w+/$/")`);
-  })
+  });
+
+  test("JSON", () => {
+    expect(TASON.stringify(new _JSON(`null`)))
+      .toEqual(`JSON("null")`);
+    expect(TASON.stringify(new _JSON(`[1,2,3]`)))
+      .toEqual(`JSON("[1,2,3]")`);
+    expect(TASON.stringify(new _JSON(`[1,2,3]`, "array")))
+      .toEqual(`JSONArray("[1,2,3]")`);
+    expect(TASON.stringify(new _JSON(`{"\\n嗯嗯嗯\\n":1}`, "object")))
+      .toEqual(`JSONObject("{\\"\\\\n嗯嗯嗯\\\\n\\":1}")`);
+  });
+
+  test("Buffer", () => {
+    expect(TASON.stringify(new _Buffer(`Base64, eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9`)))
+      .toEqual(`Buffer("base64,eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")`);
+    expect(TASON.stringify(new _Buffer(`hex, 2e09c9650a9779f1ce8dc232881f06736c6e5e0a3236292d2679ffce2e9f49bc`)))
+      .toEqual(`Buffer("hex,2E09C9650A9779F1CE8DC232881F06736C6E5E0A3236292D2679FFCE2E9F49BC")`);
+  });
 });
