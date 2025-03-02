@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
   "keywords": [
