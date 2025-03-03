@@ -39,7 +39,37 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
 1. 编写强类型的配置文件，直接获得配置对象实例，解决JSON弱类型带来的反序列化复杂性
 2. 配合SOAP, GraphQL等已有的强类型数据和服务规范，推出简化的Web API
 
-## 基本类型
+## 语法
+
+详细语法见此ANTLR4语法文件 [TASON.g4](src/grammar/TASON.g4)
+
+TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了类型支持。
+
+以下是一个TASON文件示例，来表达MongoDB的一个文档记录：
+
+```javascript
+{
+  _id: ObjectId("6670f391dcb0bd791cb3bd18"),
+  id: UUID("3e5b933e-adc1-48a8-b0f8-30aa701cfd77"),
+  "$type": "com.alibaba.fastjson.JSONObject",
+  name: "Pilipili Corporation",
+  createTime: Date("2025-01-01T00:00:00.000Z"),
+  reportDate: '2024-12',
+  financial: {
+    totalAsset: 66666666666.,
+    totalDebt: 9876547210.33,
+    netProfit: Decimal128("114514.1919"),
+  },
+  legalPerson: User({
+    id: Int64("6571037680684232705"),
+    name: "🤣👉🤡👈🤣",
+    age: 24
+  }),
+  keywords: ["线下PVP", '本子', "femboy", ]
+}
+```
+
+### 基本类型
 
 涵盖了JSON5中的基本类型
 
@@ -82,11 +112,11 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
   * ❌ 行分隔符 `\u2028`, 段落分隔符`\u2029`: 臭名昭著
   * ⚠️ 不支持零宽度空格 `\u200B`: 该字符极易在各种软件特别是URL末尾中产生，且无法看见，从而造成难以排查的问题
   * ⚠️ 不支持不间断空格 `\u00A0`, 全角空格 `\u3000`: 该字符来源极广，且难以和普通空格区分，从而造成混淆
-## TASON类型实例
+### TASON类型实例
 
 TASON类型包括两大类：标量类型(Scalar)和对象类型(Object)。
 
-### 标量类型
+#### 标量类型
 
 类似GraphQL中的Scalar，代表了一种不会被细分的基元类型，比如各种整数、浮点数、日期时间、正则表达式、UUID等。
 
@@ -94,7 +124,7 @@ TASON类型包括两大类：标量类型(Scalar)和对象类型(Object)。
 * 可以创建自己的标量类型，并且标量类型不受类型的复杂程度限制。例如可以创建一个名为`JSON`的标量类型，使用`JSON.stringify()`和`JSON.parse()`进行序列化和反序列化一整个字符串
 * 默认情况下，标量类型对应的类具有一个构造函数，接受一个代表值的字符串作为参数
 
-### 对象类型
+#### 对象类型
 
 对象类型代表一种强类型化的对象，比如各种结构体、类、字典等。
 
@@ -200,12 +230,12 @@ console.log(serializer.stringify(people));
 
 * ✅ Date : 时间日期，使用JavaScript的`Date`对象。时区取决于创建时是否指定了时区标记。
 * Time : 时间，时区取决于创建时是否指定了时区标记。
-* Timestamp : UTC时间戳（单位为秒），和时区无关。
+* ✅ Timestamp : UTC时间戳（单位为秒），和时区无关。
 
 ### 其它内置类型
 
 * ✅ RegExp: 正则表达式，采用PCRE语法，并用js风格的/.../包裹起来，后面跟上正则表达式选项字符
-* UUID : UUID/GUID，横杠分隔的形式
+* ✅ UUID : UUID/GUID，横杠分隔的形式
 * ✅ JSON类型: 包括`JSON`, `JSONObject`和`JSONArray`。虽然TASON完全支持JSON的语法，但在某些情况下仍然需要使用目标语言所使用的专用JSON类型，
 例如Java的JSONObject(fastjson)，以便于更好地控制序列化反序列化过程
 * ✅ Buffer : 二进制数据，使用base64编码或者HEX字符串

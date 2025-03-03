@@ -4,27 +4,19 @@ import { SymbolTypeInfo } from "./Symbol";
 import JSONTypes from "./json";
 import { RegExpTypeInfo } from "./RegExp";
 import { BufferTypeInfo } from "./Buffer";
+import { UUIDTypeInfo } from "./UUID";
+import DateTypes from "./date";
 
 export const unsafeTypes = ["Symbol"];
 
 export const ScalarTypes = {
   ...NumberTypes,
   ...JSONTypes,
-  Date: defineType({
-    kind: "scalar",
-    ctor: Date,
-    serialize: (value) => value.toISOString(),
-    deserialize: (value) => {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        throw new TypeError(`Invalid Date: ${value}`);
-      }
-      return date;
-    },
-  }),
+  ...DateTypes,
   RegExp: RegExpTypeInfo,
   Symbol: SymbolTypeInfo,
   Buffer: BufferTypeInfo,
+  UUID: UUIDTypeInfo,
 };
 
 export const ObjectTypes = {};

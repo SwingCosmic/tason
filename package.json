@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
   "keywords": [
@@ -44,7 +44,8 @@
     "decimal.js": "^10.5.0",
     "js-string-escape": "^1.0.1",
     "reflect-metadata": "^0.2.2",
-    "unescape-js": "^1.1.4"
+    "unescape-js": "^1.1.4",
+    "uuid": "^11.1.0"
   },
   "publishConfig": {
     "access": "public",
