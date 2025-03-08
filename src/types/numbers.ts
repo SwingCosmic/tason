@@ -108,14 +108,14 @@ abstract class NumberBase<T> implements INumber<T> {
   }
 }
 
-export class Byte extends NumberBase<number> {
+export class UInt8 extends NumberBase<number> {
   clampValue(value: number): [boolean, number] {
     let success = true;
-    if (value < Byte.MIN_VALUE) {
-      value = Byte.MIN_VALUE;
+    if (value < UInt8.MIN_VALUE) {
+      value = UInt8.MIN_VALUE;
       success = false;
-    } else if (value > Byte.MAX_VALUE) {
-      value = Byte.MAX_VALUE;
+    } else if (value > UInt8.MAX_VALUE) {
+      value = UInt8.MAX_VALUE;
       success = false;
     }
     return [success, value];
@@ -276,7 +276,7 @@ export class Decimal128 extends NumberBase<Decimal> {
 }
 
 export const Numbers = {
-  Byte: Byte as INumberConstructor<Byte, number>,
+  UInt8: UInt8 as INumberConstructor<UInt8, number>,
   Int16: Int16 as INumberConstructor<Int16, number>,
   Int32: Int32 as INumberConstructor<Int32, number>,
   Int64: Int64 as INumberConstructor<Int64, bigint>,

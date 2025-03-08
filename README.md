@@ -213,12 +213,12 @@ console.log(serializer.stringify(people));
 
 ### 整数和浮点数类型
 
-* ✅ Byte : 8位无符号整数
+* ✅ UInt8 : 8位无符号整数，提供别名Byte
 * ✅ Int16 : 16位有符号整数
 * ✅ Int32 : 32位有符号整数
 * ✅ Int64 : 64位有符号整数
-* ✅ Float32 : 32位浮点数
-* ✅ Float64 : 64位浮点数
+* ✅ Float32 : 32位浮点数，提供别名Single
+* ✅ Float64 : 64位浮点数，提供别名Double
 * ✅ Decimal128 : 128位有符号十进制数
 * ✅ BigInt : 无限精度整数
 

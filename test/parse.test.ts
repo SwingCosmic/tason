@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
+import { Decimal128, UInt8 } from "@/types/numbers";
 
 class User {
   name: string;
@@ -76,5 +77,13 @@ describe("parse", () => {
     });
 
     expect(() => s2.parse(`{a:1, a:2}`)).toThrow();
+  });
+
+  test("别名", () => {
+    const s = new TASON.Serializer();
+    s.registry.registerTypeAlias("Decimal", "Decimal128");
+    expect(s.parse(`Decimal("33.455")`)).toEqual(new Decimal128("33.455"));
+
+    expect(s.parse(`Byte("120")`)).toEqual(new UInt8("120"));
   });
 });

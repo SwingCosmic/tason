@@ -82,7 +82,7 @@ describe("stringify", () => {
     expect(() => s.stringify(user)).not.toThrow();
   });
 
-  test("metadata", () => {
+  test("鸭子类型 - metadata", () => {
     @TASONType("User", { kind: "object" })
     class AnotherUser {
       name: string;
@@ -99,7 +99,7 @@ describe("stringify", () => {
       kind: "object",
       ctor: User,
     });
-    expect(s.stringify(new AnotherUser("foo", [new AnotherUser("bar")])))
+    expect(s.stringify(new AnotherUser("foo", [new User("bar")])))
       .toEqual(`User({name:"foo",friends:[User({name:"bar",friends:[]})]})`);
   });
 });

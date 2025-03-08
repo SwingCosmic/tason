@@ -1,4 +1,4 @@
-import { Types, unsafeTypes } from "./types";
+import { Types, unsafeTypes, typeAlias } from "./types";
 import {
   getDeclaredType,
   TASONTypeDiscriminator,
@@ -20,6 +20,9 @@ export default class TASONTypeRegistry {
         continue;
       }
       this.registerType<any>(name, type);
+    }
+    for (const [name, type] of Object.entries(typeAlias)) {
+      this.registerTypeAlias(name, type);
     }
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
-import { Byte, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
+import { UInt8, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
 import { JSON as _JSON } from "@/types/json";
 import { Buffer as _Buffer } from "@/types/Buffer";
 import { UUID } from "@/types/UUID";
@@ -9,8 +9,8 @@ import { Timestamp } from "@/types/date";
 
 describe("内置类型解析测试", () => {
   test("numbers", () => {
-    expect(TASON.parse('Byte("64")'))
-      .toEqual(new Byte('64'));
+    expect(TASON.parse('UInt8("64")'))
+      .toEqual(new UInt8('64'));
     expect(TASON.parse("Int16('-0xAB')"))
       .toEqual(new Int16('-0xAB'));
     expect(TASON.parse("Int32('0o123456')"))
@@ -22,7 +22,7 @@ describe("内置类型解析测试", () => {
     expect(TASON.parse("BigInt('340282366920938463463374607431768211456')"))
       .toEqual(2n ** 128n);
 
-    expect(() => TASON.parse(`Byte('-100')`)).toThrow();
+    expect(() => TASON.parse(`UInt8('-100')`)).toThrow();
     expect(() => TASON.parse(`Int16('30023.43')`)).toThrow();
     expect(() => TASON.parse(`Int16('.5443')`)).toThrow();
     expect(TASON.parse(`Int16('8080.')`)).toEqual(new Int16('8080'));

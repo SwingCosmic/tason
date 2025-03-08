@@ -1,13 +1,13 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
-import { Byte, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
+import { UInt8, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
 import { JSON as _JSON } from "@/types/json";
 import { Buffer as _Buffer } from "@/types/Buffer";
 
 describe("内置类型序列化测试", () => {
   test("numbers", () => {
-    expect(TASON.stringify(new Byte("64")))
-      .toEqual(`Byte("64")`);
+    expect(TASON.stringify(new UInt8("64")))
+      .toEqual(`UInt8("64")`);
     expect(TASON.stringify(new Int16("-0xAB")))
       .toEqual(`Int16("-171")`);
     expect(TASON.stringify(new Int32("0o123456")))
