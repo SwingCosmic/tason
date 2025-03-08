@@ -83,7 +83,7 @@ describe("stringify", () => {
   });
 
   test("metadata", () => {
-    @TASONType("User")
+    @TASONType("User", { kind: "object" })
     class AnotherUser {
       name: string;
       friends: AnotherUser[];

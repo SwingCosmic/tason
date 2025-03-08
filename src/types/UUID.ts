@@ -9,7 +9,7 @@ export class UUID {
     if (!pattern.test(value)) {
       throw new TypeError(`Invalid UUID: ${value}`);
     }
-    this.value = value;
+    this.value = value.toLowerCase();
   }
 
   static new(): UUID {

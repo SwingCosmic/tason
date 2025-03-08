@@ -19,7 +19,14 @@ export class Timestamp {
   readonly time: number;
 
   constructor(time: number | Date) {
-    this.time = time instanceof Date ? time.getTime() : time;
+    if (time instanceof Date) {
+      time = time.getTime();
+    }
+    
+    if (Number.isNaN(time) || !Number.isFinite(time)) {
+      throw new TypeError(`Invalid timestamp: ${time}`);
+    }
+    this.time = time;
   }
 
   toDate() {

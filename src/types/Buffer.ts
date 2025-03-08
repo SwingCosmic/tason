@@ -1,13 +1,38 @@
 /// <reference types="node" />
 
 type NodeBuffer = import("node:buffer").Buffer<ArrayBuffer>;
-import { decode as decodeBase64 } from "base64-arraybuffer";
+import { decode as decodeBase64, encode as encodeBase64 } from "base64-arraybuffer";
 import { defineType } from "./TASONTypeInfo";
 
+function copySharedArrayBuffer(buffer: SharedArrayBuffer) {
+  const ret = new ArrayBuffer(buffer.byteLength);
+  const sourceView = new Uint8Array(buffer);
+  const targetView = new Uint8Array(ret);
+  targetView.set(sourceView);
+  return ret;
+}
+
 export class Buffer {
-  readonly data: string;
-  readonly type: "base64" | "hex";
-  constructor(dataString: string) {
+  readonly type: "base64" | "hex" | "array-buffer";
+
+  private readonly data: string = null!;
+  private readonly buffer: ArrayBuffer = null!;
+
+  constructor(dataString: string);
+  constructor(buffer: ArrayBuffer | SharedArrayBuffer);
+  constructor(dataString: string | ArrayBuffer | SharedArrayBuffer) {
+    if (dataString instanceof SharedArrayBuffer) {
+      // 由于SharedArrayBuffer数据是共享的，因此需要复制一份避免被更改
+      // 由于其他线程可能在写入SharedArrayBuffer，无法保证复制的数据是安全的
+      this.buffer = copySharedArrayBuffer(dataString);
+      this.type = "array-buffer";
+      return;
+    } else if (dataString instanceof ArrayBuffer) {
+      this.buffer = dataString;
+      this.type = "array-buffer";
+      return;
+    }
+
     let index = dataString.indexOf(",");
     if (index < 0) {
       throw new TypeError(`Invalid data string: '${dataString.slice(0, 20)} ...'`);
@@ -36,7 +61,7 @@ export class Buffer {
   toArrayBuffer(): ArrayBuffer {
     if (this.type === "base64") {
       return decodeBase64(this.data);
-    } else {
+    } else if (this.type == "hex")  {
       if (this.data.length % 2 === 1) {
         throw new RangeError(`Expect hex string to be an even number of characters`);
       }
@@ -46,6 +71,8 @@ export class Buffer {
         bytes[i / 2] = parseInt(this.data.substring(i, i + 2), 16);
       }
       return bytes.buffer;
+    } else {
+      return this.buffer;
     }
   }
 
@@ -60,12 +87,17 @@ export class Buffer {
 
     if (this.type === "base64") {
       return _NodeBuffer.from(this.data, "base64");
-    } else {
+    } else if (this.type === "hex") {
       return _NodeBuffer.from(this.data, "hex");
+    } else {
+      return _NodeBuffer.from<ArrayBuffer>(this.buffer);
     }
   }
 
   toString() {
+    if (this.type === "array-buffer") {
+      return "base64," + encodeBase64(this.buffer);
+    }
     return [this.type, this.data].join(",");
   }
 }

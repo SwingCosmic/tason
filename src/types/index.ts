@@ -6,6 +6,8 @@ import { RegExpTypeInfo } from "./RegExp";
 import { BufferTypeInfo } from "./Buffer";
 import { UUIDTypeInfo } from "./UUID";
 import DateTypes from "./date";
+import { Constructor } from "type-fest";
+import { setTypeName } from "./metadata";
 
 export const unsafeTypes = ["Symbol"];
 
@@ -25,3 +27,10 @@ export const Types = {
   ...ScalarTypes,
   ...ObjectTypes,
 };
+
+
+export const unsafeBuiltinCtors = [
+  SharedArrayBuffer,
+  WeakMap,
+  WeakSet,
+];

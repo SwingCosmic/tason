@@ -162,7 +162,7 @@ export class TASONVisitor {
   }
 
   private createTypeInstance(typeName: string, value: any) {
-    const typeInfo = this.registry.getType(typeName);
+    const typeInfo = this.registry.getDefaultType(typeName);
     if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
     return this.registry.createInstance(typeInfo, value);
   }

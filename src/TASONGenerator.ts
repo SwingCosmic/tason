@@ -1,5 +1,6 @@
 import { SerializerOptions } from "./SerializerOptions";
 import type TASONTypeRegistry from "./TASONTypeRegistry";
+import { Buffer } from "./types/Buffer";
 import { TASONTypeInfo } from "./types/TASONTypeInfo";
 
 export class TASONGenerator {
@@ -27,7 +28,7 @@ export class TASONGenerator {
       return this.NumberValue(value);
     } else if (typeof value === "bigint") {
       return this.TypeInstanceValue(value, {
-        ...this.registry.getType("BigInt")!,
+        ...this.registry.getDefaultType("BigInt")!,
         name: "BigInt",
       });
     } else if (typeof value === "symbol") {
@@ -35,7 +36,7 @@ export class TASONGenerator {
         throw new Error(`Cannot serialize symbol type '${String(value)}'`);
       }
       return this.TypeInstanceValue(value, {
-        ...this.registry.getType("Symbol")!,
+        ...this.registry.getDefaultType("Symbol")!,
         name: "Symbol",
       });
     } else if (typeof value === "function") {
@@ -49,10 +50,9 @@ export class TASONGenerator {
       return this.ArrayValue(Array.from(value as any));
     } else if (Symbol.asyncIterator in (value as any)) {
       throw new Error(`Cannot serialize async iterable type`);
-    } else if (typeof value === "object") {
+    } else {
       return this.MaybeObjectValue(value);
     }
-    throw new Error(`Unsupported value type: ${typeof value}`);
   }
 
   NullValue() {

@@ -1,18 +1,37 @@
+import { Constructor } from "type-fest";
+import { TASONTypeInfo } from "./TASONTypeInfo";
 
 export const TASONTypeNameKey = "tason:type";
+export const TASONTypeInfoKey = "tason:type-info";
 
-export function TASONType(name: string): ClassDecorator {
+
+export function setTypeName<T>(ctor: Constructor<T>, name: string): void {
+  Reflect.defineMetadata(TASONTypeNameKey, name, ctor);
+}
+
+export function TASONType(name: string, typeInfo?: Omit<TASONTypeInfo<any>, "ctor">): ClassDecorator {
   return function (target: any) {
-    Reflect.defineMetadata(TASONTypeNameKey, name, target);
+    setTypeName(target, name);
+    if (typeInfo) {
+      Reflect.defineMetadata(TASONTypeInfoKey, {
+        ...typeInfo,
+        ctor: target
+      } as TASONTypeInfo<any>, target);
+    }
     return target;
   };
 }
 
-export function getDeclaredTypeName(value: object): string | undefined {
+export function getDeclaredType(value: object): [string, TASONTypeInfo<any> | undefined] | undefined {
   if (typeof value !== "object" || Array.isArray(value) || value == null) {
     return;
   }
-  return Reflect.getMetadata(TASONTypeNameKey, value.constructor);
+  const name = Reflect.getMetadata(TASONTypeNameKey, value.constructor);
+  if (!name) {
+    return;
+  }
+  const typeInfo = Reflect.getMetadata(TASONTypeInfoKey, value.constructor);
+  return [name, typeInfo];
 }
 
 export const TypeDiscriminatorKey: unique symbol = Symbol.for("TASON.discriminator");

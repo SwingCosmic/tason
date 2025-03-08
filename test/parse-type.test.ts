@@ -3,6 +3,8 @@ import TASON from "@/index";
 import { Byte, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
 import { JSON as _JSON } from "@/types/json";
 import { Buffer as _Buffer } from "@/types/Buffer";
+import { UUID } from "@/types/UUID";
+import { Timestamp } from "@/types/date";
 
 
 describe("内置类型解析测试", () => {
@@ -50,6 +52,13 @@ describe("内置类型解析测试", () => {
       .toEqual(new Date("1919-08-10T11:45:14+09:00"));
 
     expect(() => TASON.parse(`Date("34543-87-18")`)).toThrow();
+
+    const now = Date.now();
+    expect(TASON.parse(`Timestamp('${now}')`))
+      .toEqual(new Timestamp(now));
+
+    expect(TASON.parse(`Timestamp('-10000000')`))
+      .toEqual(new Timestamp(new Date(-10000000).getTime()));
   });
 
 
@@ -87,5 +96,12 @@ describe("内置类型解析测试", () => {
     
     expect(() => TASON.parse<_Buffer>(`Buffer('hex,\\0\\x03\\xa0\\b')`)).toThrow();
     expect(() => TASON.parse<_Buffer>(`Buffer('base64, jdsfyjf%$@#$#')`)).toThrow();
-  })
+  });
+
+  test("UUID", () => {
+    expect(TASON.parse<UUID>(`UUID('91610333-A4B6-4F39-865F-15E0079DE6B1')`))
+      .toEqual(new UUID("91610333-a4b6-4f39-865f-15e0079de6b1"));
+
+    expect(() => TASON.parse<UUID>(`UUID('{49147ae5-0929-4faf-ba9e-e29fc0ae662c}')`)).toThrow();
+  });
 });
