@@ -1,4 +1,4 @@
-import { defineType } from "./TASONTypeInfo";
+import { defineType } from "../TASONTypeInfo";
 
 type WellknownSymbolNames = `Symbol.${Exclude<
   keyof SymbolConstructor,

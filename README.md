@@ -214,9 +214,9 @@ console.log(serializer.stringify(people));
 ### 整数和浮点数类型
 
 * ✅ UInt8 : 8位无符号整数，提供别名Byte
-* ✅ Int16 : 16位有符号整数
-* ✅ Int32 : 32位有符号整数
-* ✅ Int64 : 64位有符号整数
+* ✅ Int16 : 16位有符号整数，提供别名Short
+* ✅ Int32 : 32位有符号整数，提供别名Int
+* ✅ Int64 : 64位有符号整数，提供别名Long
 * ✅ Float32 : 32位浮点数，提供别名Single
 * ✅ Float64 : 64位浮点数，提供别名Double
 * ✅ Decimal128 : 128位有符号十进制数
@@ -241,19 +241,39 @@ console.log(serializer.stringify(people));
 * ✅ Buffer : 二进制数据，使用base64编码或者HEX字符串
 * 哈希值类型：包括MD5, SHA1, SHA256, CRC32等常见哈希算法，HEX字符串
 
+### JavaScript类型
+
+* DOM对象：采用HTML/XML字符串表示
+* 各种TypedArray, DataView，ArrayBuffer和node.js Buffer：转换为Buffer类型
+
 ### 类型注意事项
 
 以下类型可能会导致一些问题，需要谨慎使用
+
+#### 集合类型
+
+集合类型是指可迭代/可枚举类型，如js的`Iterable<T>`，c#的`IEnumerable<T>`等，表达比数组更复杂的集合数据结构。
+
+默认情况下，集合类型将会以数组的形式序列化，因此存在以下限制：
+* ⚠️ 不指定类型反序列化时只能得到数组
+* ⚠️ 对象中包含可迭代类型的属性时，如果该对象不能正确处理数组类型到到可迭代对象的转换（通常发生在js和Python等动态语言中），则可能发生异常
+* ⚠️ 在C#中，对于泛型可迭代对象，在反序列化时可能因为其中的项违反泛型约束而失败
+
+如果确实需要保留集合类型，可以设置选项`useBuiltinCollection`为true来序列化为ObjectTypeInstance，而不是数组
+* ⚠️ 启用`useBuiltinCollection`的情况下，无法保证跨语言的兼容性，例如C#的`SortedList<T>`在Java中找不到匹配项。
 
 #### 字典类型
 
 字典类型是指js和java的`Map<K, V>`，C#的`IDictionary<K, V>`，Python的`dict[K, V]`等用于存储键值对的类型；在js中普通对象也常用来当做字典使用。
 
+默认情况下，字典将会以对象的形式序列化，因此存在以下对象类型的限制：
 * ⚠️ 仅支持键为字符串，使用非字符串的键会导致未定义的行为
   * 在非泛型字典中，如js和Java中通常会丢弃非法的键值对
   * 在C#中，如果泛型`Dictionary<K, V>`的键类型`K`不是字符串，则会抛出异常；非泛型字典丢弃字符串以外的键值对
 * ⚠️ 在js中使用数字作为Map的键会在序列化时转换为字符串，反序列化时会产生类型错误
 * ❌ 不支持js Symbol作为键
+
+如果确实需要非字符串的键，包括对象或者Symbol，可以设置选项`useBuiltinDictionary`为true来序列化为内置Dictionary类型，而不是对象
 
 #### 不安全的类型
 
@@ -261,8 +281,7 @@ console.log(serializer.stringify(people));
 
 * ⚠️ js的`Symbol`: 因为其设计上的特殊性，虽然Symbol可以被序列化和反序列化，但不能保证反序列化后的Symbol对象与原始Symbol对象是同一个。
   * ❌ 无法序列化和反序列化不在全局Symbol注册表中的本地Symbol。
-* ⚠️ 共享内存对象，如js的`SharedArrayBuffer`: 由于可以被多线程写入，无法保证值在序列化时是固定的
-* ⚠️ 支持弱引用的类型，如js和Java的`WeakMap`, `WeakSet`: 可能破坏引用计数，导致内存泄露。
+* ⚠️ 共享内存对象，如js的`SharedArrayBuffer`: 由于可以被多线程写入，无法保证值在序列化时是固定的；始终克隆一个`ArrayBuffer`的副本以防止被修改。
 * ⚠️ 指针类型：只能序列化为对应的基础数值类型；无法反序列化，反序列化指针没有意义且具有严重的安全问题
 
 #### 不支持的类型
@@ -272,3 +291,4 @@ console.log(serializer.stringify(people));
 * ❌ 各种函数和类的定义: 序列化和传输代码是一种高危操作。如果需要在特定条件（例如MongoDB查询）下使用，请使用自定义的类型包装代码
 * ❌ 类的静态成员和非公共成员: 按语义不支持。也不会提供选项来控制序列化私有字段，请使用公共属性进行暴露，或者提供自定义序列化方法
 * ❌ 循环引用: 序列化循环引用往往会带来各种性能和安全问题，而且需要额外的语法调整，因此不支持。
+* ❌ 支持弱引用的类型，如js和Java的`WeakMap`, `WeakSet`: 为了避免影响GC，这些类型都无法枚举，因此无法得到需要序列化的内容

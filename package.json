@@ -30,6 +30,7 @@
   "license": "MIT",
   "devDependencies": {
     "@jest/globals": "^29.7.0",
+    "@types/type-detect": "^4.0.3",
     "@types/unescape-js": "^1.0.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",

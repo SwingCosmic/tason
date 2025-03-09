@@ -40,7 +40,7 @@ export default class TASONSerializer {
     options.allowDuplicatedKeys ??= true;
     options.indent ??= false;
     options.maxDepth ??= 64;
-    options.registry ??= new TASONTypeRegistry(options.allowUnsafeTypes);
+    options.registry ||= new TASONTypeRegistry(options);
 
     this.registry = options.registry;
     delete options.registry;

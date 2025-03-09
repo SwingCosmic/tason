@@ -82,6 +82,31 @@ describe("stringify", () => {
     expect(() => s.stringify(user)).not.toThrow();
   });
 
+  test("use builtin dictionary", () => {
+    const s = new TASON.Serializer({
+      useBuiltinDictionary: true,
+      allowUnsafeTypes: true,
+    });
+
+    expect(s.stringify(new Map([["foo", "bar"]])))
+      .toEqual(`Dictionary({keyValuePairs:[["foo","bar"]]})`);
+    expect(TASON.stringify(new Map([["foo", "bar"]])))
+      .toEqual(`{foo:"bar"}`);
+
+    expect(s.stringify(new Map<any, any>([
+      [Symbol.toStringTag, "bar"], 
+      [true, "foo"]
+    ])))
+      .toEqual(`Dictionary({keyValuePairs:[[Symbol("Symbol.toStringTag"),"bar"],[true,"foo"]]})`);
+    expect(TASON.stringify(new Map<any, any>([
+      [Symbol.toStringTag, "bar"], 
+      ["a", "b"]
+    ]))).toEqual(`{a:"b"}`);
+
+    expect(s.stringify(new Map([[{a:1}, new Map([[1,2]])]])))
+      .toEqual(`Dictionary({keyValuePairs:[[{a:1},Dictionary({keyValuePairs:[[1,2]]})]]})`);
+  });
+
   test("鸭子类型 - metadata", () => {
     @TASONType("User", { kind: "object" })
     class AnotherUser {

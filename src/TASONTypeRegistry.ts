@@ -1,3 +1,4 @@
+import { SerializerOptions } from "./SerializerOptions";
 import { Types, unsafeTypes, typeAlias } from "./types";
 import {
   getDeclaredType,
@@ -14,9 +15,11 @@ interface TASONRegistryEntry<T> {
 export default class TASONTypeRegistry {
   private readonly types: Map<string, TASONRegistryEntry<any>> = new Map();
 
-  constructor(allowUnsafeTypes = false) {
+  private readonly options: SerializerOptions;
+  constructor(options: SerializerOptions) {
+    this.options = options;
     for (const [name, type] of Object.entries(Types)) {
-      if (unsafeTypes.includes(name) && !allowUnsafeTypes) {
+      if (unsafeTypes.includes(name) && !options.allowUnsafeTypes) {
         continue;
       }
       this.registerType<any>(name, type);
@@ -28,7 +31,7 @@ export default class TASONTypeRegistry {
 
   /** 克隆一个具有相同注册类型的TASONTypeRegistry，以进行独立的操作 */
   clone() {
-    const ret = new TASONTypeRegistry();
+    const ret = new TASONTypeRegistry(this.options);
     for (const [name, type] of this.types) {
       ret.types.set(name, type);
     }
@@ -101,7 +104,7 @@ export default class TASONTypeRegistry {
       }
 
       if (type.deserialize) {
-        return type.deserialize(arg);
+        return type.deserialize(arg, this.options);
       }
       return new type.ctor(arg);
     } else {
@@ -110,7 +113,7 @@ export default class TASONTypeRegistry {
       }
 
       if (type.deserialize) {
-        return type.deserialize(arg as any);
+        return type.deserialize(arg as any, this.options);
       }
       const instance = new type.ctor() as any;
       for (const key of Object.keys(arg)) {
@@ -133,14 +136,14 @@ export default class TASONTypeRegistry {
     let arg: any;
     if (type.kind === "scalar") {
       if (type.serialize) {
-        arg = type.serialize(value);
+        arg = type.serialize(value, this.options);
       } else {
         arg = String(value);
       }
     } else {
       arg = value;
       if (type.serialize) {
-        arg = type.serialize(value);
+        arg = type.serialize(value, this.options);
       } else if (typeof (value as any).toJSON === "function") {
         arg = (value as any).toJSON();
       } else if (typeof (value as any).toTASON === "function") {

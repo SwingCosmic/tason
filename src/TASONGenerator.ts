@@ -1,7 +1,9 @@
 import { SerializerOptions } from "./SerializerOptions";
 import type TASONTypeRegistry from "./TASONTypeRegistry";
 import { Buffer } from "./types/Buffer";
+import { DictionaryTypeInfo } from "./types/Dictionary";
 import { TASONTypeInfo } from "./types/TASONTypeInfo";
+import typeDetect from "type-detect";
 
 export class TASONGenerator {
   private options: Required<SerializerOptions>;
@@ -47,7 +49,7 @@ export class TASONGenerator {
     } else if (Array.isArray(value)) {
       return this.ArrayValue(value);
     } else if (Symbol.iterator in (value as any)) {
-      return this.ArrayValue(Array.from(value as any));
+      return this.MaybeArrayValue(value as any);
     } else if (Symbol.asyncIterator in (value as any)) {
       throw new Error(`Cannot serialize async iterable type`);
     } else {
@@ -71,6 +73,25 @@ export class TASONGenerator {
     return value.toString(10);
   }
 
+  MaybeArrayValue(value: Iterable<any>) {
+    if (value instanceof Map) {
+      if (this.options.useBuiltinDictionary) {
+        return this.TypeInstanceValue(value, {
+          ...this.registry.getDefaultType("Dictionary")!,
+          name: "Dictionary",
+        });
+      } else {
+        const entries = Object.fromEntries<any>(
+          Array.from(value.entries()).filter(e => {
+            return typeof e[0] === "string" && typeof e[1] !== "function";
+          }),
+        );
+        return this.ObjectValue(entries);  
+      }
+    }
+    return this.ArrayValue(Array.from(value));
+  }
+
   ArrayValue(value: unknown[]) {
     if (value.length === 0) {
       return "[]";
@@ -92,6 +113,29 @@ export class TASONGenerator {
   }
 
   MaybeObjectValue(value: object) {
+    // 处理弱引用
+    if (value instanceof WeakMap || value instanceof WeakSet || (typeof WeakRef === "function" && value instanceof WeakRef)) {
+      const name = typeDetect(value);
+      throw new Error(`Cannot serialize garbage-collectable type ${name}`);
+    }
+
+    // 处理TypedArray, DataView和ArrayBufferLike
+    do {
+      let buffer: ArrayBufferLike | null = null;
+      if (ArrayBuffer.isView(value)) {
+        buffer = value.buffer;
+      } else if (value instanceof ArrayBuffer) {
+        buffer = value;
+      } else {
+        break;
+      }
+
+      if (buffer instanceof SharedArrayBuffer && !this.options.allowUnsafeTypes) {
+        throw new Error(`SharedArrayBuffer can be modified by multiple threads which may cause unexpected behavior.`);
+      }
+      value = new Buffer(buffer);
+    } while (false);
+
     const type = this.registry.tryGetTypeInfo(value);
     if (!type) {
       return this.ObjectValue(value);
