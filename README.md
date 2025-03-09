@@ -4,6 +4,8 @@
 
 TASON (Type-Augmented Serialization Object Notation，发音`/ˈtæsən/`) 是一种类型化的对象表示语法，可以用于序列化和反序列化数据。
 
+本仓库为原始JavaScript/TypeScript实现，其他语言的实现可以参考以下项目：
+* .NET/C#： [tason-net](https://github.com/SwingCosmic/tason-net)
 
 ## 特性
 
@@ -56,8 +58,8 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
   createTime: Date("2025-01-01T00:00:00.000Z"),
   reportDate: '2024-12',
   financial: {
-    totalAsset: 66666666666.,
-    totalDebt: 9876547210.33,
+    totalAsset: 6.66e11,
+    totalDebt: +9876547210.33,
     netProfit: Decimal128("114514.1919"),
   },
   legalPerson: User({
