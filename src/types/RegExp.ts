@@ -1,6 +1,6 @@
 import { defineType } from "./TASONTypeInfo";
 
-const regexpPattern = /^\/(.+)\/([gimsuy]*)$/;
+const regexpPattern = /^\/(.+)\/([gimnsxuy]*)$/;
 
 export const RegExpTypeInfo = defineType({
   kind: "scalar",
@@ -12,7 +12,13 @@ export const RegExpTypeInfo = defineType({
   deserialize: value => {
     const match = value.match(regexpPattern);
     if (match) {
-      return new RegExp(match[1], match[2]);
+      let [_, pattern, flags] = match;
+      for (const flag of flags) {
+        if (["n", "x"].includes(flag)) {
+          throw new TypeError(`Flag ${flag} is not supported`);
+        }
+      }
+      return new RegExp(pattern, flags);
     } else {
       throw new TypeError(`Invalid RegExp: ${value}`);
     }

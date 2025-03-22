@@ -95,6 +95,7 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
 ## 其它内置类型
 
 * ✅ RegExp: 正则表达式，采用PCRE语法，并用js风格的/.../包裹起来，后面跟上正则表达式选项字符
+  * ⚠️ 正则表达式在不同语言的支持存在差异，具体见 [正则表达式](regexp.md)
 * ✅ UUID : UUID/GUID，横杠分隔的形式
 * ✅ JSON类型: 包括`JSON`, `JSONObject`和`JSONArray`。虽然TASON完全支持JSON的语法，但在某些情况下仍然需要使用目标语言所使用的专用JSON类型，
 例如Java的JSONObject(fastjson)，以便于更好地控制序列化反序列化过程
