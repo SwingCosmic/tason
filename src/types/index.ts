@@ -40,6 +40,6 @@ export const typeAlias = {
   Short: "Int16",
   Int: "Int32",
   Long: "Int64",
-  Float: "Float32",
+  Single: "Float32",
   Double: "Float64",
 } as const;
