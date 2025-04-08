@@ -6,7 +6,6 @@ BOOLEAN_TRUE: 'true';
 BOOLEAN_FALSE: 'false';
 NULL: 'null';
 
-TYPE_NAME: [A-Z][a-zA-Z0-9_]*;
 IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
 
 
@@ -28,14 +27,17 @@ value
 boolean: BOOLEAN_TRUE | BOOLEAN_FALSE;
 
 typeInstance
-  : TYPE_NAME '(' STRING ')' # ScalarTypeInstance
-  | TYPE_NAME '(' object ')' # ObjectTypeInstance
+  : IDENTIFIER '(' STRING ')' # ScalarTypeInstance
+  | IDENTIFIER '(' object ')' # ObjectTypeInstance
   ;
 
 
 //#region object
 
-object: '{' (pair (',' pair)* ','?)? '}';
+object
+  : '{' pair (',' pair)* ','? '}'
+  | '{' '}'
+  ;
 
 pair: key ':' value;
 

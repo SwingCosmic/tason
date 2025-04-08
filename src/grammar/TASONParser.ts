@@ -30,15 +30,14 @@ export default class TASONParser extends Parser {
 	public static readonly BOOLEAN_TRUE = 11;
 	public static readonly BOOLEAN_FALSE = 12;
 	public static readonly NULL = 13;
-	public static readonly TYPE_NAME = 14;
-	public static readonly IDENTIFIER = 15;
-	public static readonly WS = 16;
-	public static readonly SINGLE_LINE_COMMENT = 17;
-	public static readonly MULTI_LINE_COMMENT = 18;
-	public static readonly STRING = 19;
-	public static readonly SYMBOL = 20;
-	public static readonly NUMBER = 21;
-	public static readonly INVALID_CHAR = 22;
+	public static readonly IDENTIFIER = 14;
+	public static readonly WS = 15;
+	public static readonly SINGLE_LINE_COMMENT = 16;
+	public static readonly MULTI_LINE_COMMENT = 17;
+	public static readonly STRING = 18;
+	public static readonly SYMBOL = 19;
+	public static readonly NUMBER = 20;
+	public static readonly INVALID_CHAR = 21;
 	public static override readonly EOF = Token.EOF;
 	public static readonly RULE_start = 0;
 	public static readonly RULE_value = 1;
@@ -64,8 +63,7 @@ export default class TASONParser extends Parser {
                                                              null, null, 
                                                              null, "BOOLEAN_TRUE", 
                                                              "BOOLEAN_FALSE", 
-                                                             "NULL", "TYPE_NAME", 
-                                                             "IDENTIFIER", 
+                                                             "NULL", "IDENTIFIER", 
                                                              "WS", "SINGLE_LINE_COMMENT", 
                                                              "MULTI_LINE_COMMENT", 
                                                              "STRING", "SYMBOL", 
@@ -140,7 +138,7 @@ export default class TASONParser extends Parser {
 				this.array();
 				}
 				break;
-			case 19:
+			case 18:
 				localctx = new StringValueContext(this, localctx);
 				this.enterOuterAlt(localctx, 3);
 				{
@@ -150,8 +148,8 @@ export default class TASONParser extends Parser {
 				break;
 			case 9:
 			case 10:
+			case 19:
 			case 20:
-			case 21:
 				localctx = new NumberValueContext(this, localctx);
 				this.enterOuterAlt(localctx, 4);
 				{
@@ -248,7 +246,7 @@ export default class TASONParser extends Parser {
 				this.enterOuterAlt(localctx, 1);
 				{
 				this.state = 32;
-				this.match(TASONParser.TYPE_NAME);
+				this.match(TASONParser.IDENTIFIER);
 				this.state = 33;
 				this.match(TASONParser.T__0);
 				this.state = 34;
@@ -262,7 +260,7 @@ export default class TASONParser extends Parser {
 				this.enterOuterAlt(localctx, 2);
 				{
 				this.state = 36;
-				this.match(TASONParser.TYPE_NAME);
+				this.match(TASONParser.IDENTIFIER);
 				this.state = 37;
 				this.match(TASONParser.T__0);
 				this.state = 38;
@@ -294,15 +292,14 @@ export default class TASONParser extends Parser {
 		let _la: number;
 		try {
 			let _alt: number;
-			this.enterOuterAlt(localctx, 1);
-			{
-			this.state = 43;
-			this.match(TASONParser.T__2);
-			this.state = 55;
+			this.state = 59;
 			this._errHandler.sync(this);
-			_la = this._input.LA(1);
-			if (_la===15 || _la===19) {
+			switch ( this._interp.adaptivePredict(this._input, 4, this._ctx) ) {
+			case 1:
+				this.enterOuterAlt(localctx, 1);
 				{
+				this.state = 43;
+				this.match(TASONParser.T__2);
 				this.state = 44;
 				this.pair();
 				this.state = 49;
@@ -333,11 +330,19 @@ export default class TASONParser extends Parser {
 					}
 				}
 
+				this.state = 55;
+				this.match(TASONParser.T__4);
 				}
-			}
-
-			this.state = 57;
-			this.match(TASONParser.T__4);
+				break;
+			case 2:
+				this.enterOuterAlt(localctx, 2);
+				{
+				this.state = 57;
+				this.match(TASONParser.T__2);
+				this.state = 58;
+				this.match(TASONParser.T__4);
+				}
+				break;
 			}
 		}
 		catch (re) {
@@ -361,11 +366,11 @@ export default class TASONParser extends Parser {
 		try {
 			this.enterOuterAlt(localctx, 1);
 			{
-			this.state = 59;
-			this.key();
-			this.state = 60;
-			this.match(TASONParser.T__5);
 			this.state = 61;
+			this.key();
+			this.state = 62;
+			this.match(TASONParser.T__5);
+			this.state = 63;
 			this.value();
 			}
 		}
@@ -388,22 +393,22 @@ export default class TASONParser extends Parser {
 		let localctx: KeyContext = new KeyContext(this, this._ctx, this.state);
 		this.enterRule(localctx, 12, TASONParser.RULE_key);
 		try {
-			this.state = 65;
+			this.state = 67;
 			this._errHandler.sync(this);
 			switch (this._input.LA(1)) {
-			case 19:
+			case 18:
 				localctx = new StringKeyContext(this, localctx);
 				this.enterOuterAlt(localctx, 1);
 				{
-				this.state = 63;
+				this.state = 65;
 				this.match(TASONParser.STRING);
 				}
 				break;
-			case 15:
+			case 14:
 				localctx = new IdentifierContext(this, localctx);
 				this.enterOuterAlt(localctx, 2);
 				{
-				this.state = 64;
+				this.state = 66;
 				this.match(TASONParser.IDENTIFIER);
 				}
 				break;
@@ -432,54 +437,54 @@ export default class TASONParser extends Parser {
 		let _la: number;
 		try {
 			let _alt: number;
-			this.state = 83;
+			this.state = 85;
 			this._errHandler.sync(this);
 			switch ( this._interp.adaptivePredict(this._input, 8, this._ctx) ) {
 			case 1:
 				this.enterOuterAlt(localctx, 1);
 				{
-				this.state = 67;
+				this.state = 69;
 				this.match(TASONParser.T__6);
-				this.state = 68;
+				this.state = 70;
 				this.value();
-				this.state = 73;
+				this.state = 75;
 				this._errHandler.sync(this);
 				_alt = this._interp.adaptivePredict(this._input, 6, this._ctx);
 				while (_alt !== 2 && _alt !== ATN.INVALID_ALT_NUMBER) {
 					if (_alt === 1) {
 						{
 						{
-						this.state = 69;
+						this.state = 71;
 						this.match(TASONParser.T__3);
-						this.state = 70;
+						this.state = 72;
 						this.value();
 						}
 						}
 					}
-					this.state = 75;
+					this.state = 77;
 					this._errHandler.sync(this);
 					_alt = this._interp.adaptivePredict(this._input, 6, this._ctx);
 				}
-				this.state = 77;
+				this.state = 79;
 				this._errHandler.sync(this);
 				_la = this._input.LA(1);
 				if (_la===4) {
 					{
-					this.state = 76;
+					this.state = 78;
 					this.match(TASONParser.T__3);
 					}
 				}
 
-				this.state = 79;
+				this.state = 81;
 				this.match(TASONParser.T__7);
 				}
 				break;
 			case 2:
 				this.enterOuterAlt(localctx, 2);
 				{
-				this.state = 81;
+				this.state = 83;
 				this.match(TASONParser.T__6);
-				this.state = 82;
+				this.state = 84;
 				this.match(TASONParser.T__7);
 				}
 				break;
@@ -505,57 +510,57 @@ export default class TASONParser extends Parser {
 		this.enterRule(localctx, 16, TASONParser.RULE_number);
 		let _la: number;
 		try {
-			this.state = 97;
+			this.state = 99;
 			this._errHandler.sync(this);
 			switch ( this._interp.adaptivePredict(this._input, 12, this._ctx) ) {
 			case 1:
 				this.enterOuterAlt(localctx, 1);
 				{
-				this.state = 86;
+				this.state = 88;
 				this._errHandler.sync(this);
 				_la = this._input.LA(1);
-				if (_la===20) {
+				if (_la===19) {
 					{
-					this.state = 85;
+					this.state = 87;
 					this.match(TASONParser.SYMBOL);
 					}
 				}
 
-				this.state = 88;
+				this.state = 90;
 				this.match(TASONParser.NUMBER);
 				}
 				break;
 			case 2:
 				this.enterOuterAlt(localctx, 2);
 				{
-				this.state = 90;
+				this.state = 92;
 				this._errHandler.sync(this);
 				_la = this._input.LA(1);
-				if (_la===20) {
+				if (_la===19) {
 					{
-					this.state = 89;
+					this.state = 91;
 					this.match(TASONParser.SYMBOL);
 					}
 				}
 
-				this.state = 92;
+				this.state = 94;
 				this.match(TASONParser.T__8);
 				}
 				break;
 			case 3:
 				this.enterOuterAlt(localctx, 3);
 				{
-				this.state = 94;
+				this.state = 96;
 				this._errHandler.sync(this);
 				_la = this._input.LA(1);
-				if (_la===20) {
+				if (_la===19) {
 					{
-					this.state = 93;
+					this.state = 95;
 					this.match(TASONParser.SYMBOL);
 					}
 				}
 
-				this.state = 96;
+				this.state = 98;
 				this.match(TASONParser.T__9);
 				}
 				break;
@@ -576,36 +581,37 @@ export default class TASONParser extends Parser {
 		return localctx;
 	}
 
-	public static readonly _serializedATN: number[] = [4,1,22,100,2,0,7,0,2,
+	public static readonly _serializedATN: number[] = [4,1,21,102,2,0,7,0,2,
 	1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,6,2,7,7,7,2,8,7,8,1,0,1,0,1,
 	0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,29,8,1,1,2,1,2,1,3,1,3,1,3,1,3,1,3,1,
 	3,1,3,1,3,1,3,3,3,42,8,3,1,4,1,4,1,4,1,4,5,4,48,8,4,10,4,12,4,51,9,4,1,
-	4,3,4,54,8,4,3,4,56,8,4,1,4,1,4,1,5,1,5,1,5,1,5,1,6,1,6,3,6,66,8,6,1,7,
-	1,7,1,7,1,7,5,7,72,8,7,10,7,12,7,75,9,7,1,7,3,7,78,8,7,1,7,1,7,1,7,1,7,
-	3,7,84,8,7,1,8,3,8,87,8,8,1,8,1,8,3,8,91,8,8,1,8,1,8,3,8,95,8,8,1,8,3,8,
-	98,8,8,1,8,0,0,9,0,2,4,6,8,10,12,14,16,0,1,1,0,11,12,109,0,18,1,0,0,0,2,
-	28,1,0,0,0,4,30,1,0,0,0,6,41,1,0,0,0,8,43,1,0,0,0,10,59,1,0,0,0,12,65,1,
-	0,0,0,14,83,1,0,0,0,16,97,1,0,0,0,18,19,3,2,1,0,19,20,5,0,0,1,20,1,1,0,
-	0,0,21,29,3,8,4,0,22,29,3,14,7,0,23,29,5,19,0,0,24,29,3,16,8,0,25,29,3,
-	4,2,0,26,29,5,13,0,0,27,29,3,6,3,0,28,21,1,0,0,0,28,22,1,0,0,0,28,23,1,
-	0,0,0,28,24,1,0,0,0,28,25,1,0,0,0,28,26,1,0,0,0,28,27,1,0,0,0,29,3,1,0,
-	0,0,30,31,7,0,0,0,31,5,1,0,0,0,32,33,5,14,0,0,33,34,5,1,0,0,34,35,5,19,
-	0,0,35,42,5,2,0,0,36,37,5,14,0,0,37,38,5,1,0,0,38,39,3,8,4,0,39,40,5,2,
-	0,0,40,42,1,0,0,0,41,32,1,0,0,0,41,36,1,0,0,0,42,7,1,0,0,0,43,55,5,3,0,
-	0,44,49,3,10,5,0,45,46,5,4,0,0,46,48,3,10,5,0,47,45,1,0,0,0,48,51,1,0,0,
-	0,49,47,1,0,0,0,49,50,1,0,0,0,50,53,1,0,0,0,51,49,1,0,0,0,52,54,5,4,0,0,
-	53,52,1,0,0,0,53,54,1,0,0,0,54,56,1,0,0,0,55,44,1,0,0,0,55,56,1,0,0,0,56,
-	57,1,0,0,0,57,58,5,5,0,0,58,9,1,0,0,0,59,60,3,12,6,0,60,61,5,6,0,0,61,62,
-	3,2,1,0,62,11,1,0,0,0,63,66,5,19,0,0,64,66,5,15,0,0,65,63,1,0,0,0,65,64,
-	1,0,0,0,66,13,1,0,0,0,67,68,5,7,0,0,68,73,3,2,1,0,69,70,5,4,0,0,70,72,3,
-	2,1,0,71,69,1,0,0,0,72,75,1,0,0,0,73,71,1,0,0,0,73,74,1,0,0,0,74,77,1,0,
-	0,0,75,73,1,0,0,0,76,78,5,4,0,0,77,76,1,0,0,0,77,78,1,0,0,0,78,79,1,0,0,
-	0,79,80,5,8,0,0,80,84,1,0,0,0,81,82,5,7,0,0,82,84,5,8,0,0,83,67,1,0,0,0,
-	83,81,1,0,0,0,84,15,1,0,0,0,85,87,5,20,0,0,86,85,1,0,0,0,86,87,1,0,0,0,
-	87,88,1,0,0,0,88,98,5,21,0,0,89,91,5,20,0,0,90,89,1,0,0,0,90,91,1,0,0,0,
-	91,92,1,0,0,0,92,98,5,9,0,0,93,95,5,20,0,0,94,93,1,0,0,0,94,95,1,0,0,0,
-	95,96,1,0,0,0,96,98,5,10,0,0,97,86,1,0,0,0,97,90,1,0,0,0,97,94,1,0,0,0,
-	98,17,1,0,0,0,13,28,41,49,53,55,65,73,77,83,86,90,94,97];
+	4,3,4,54,8,4,1,4,1,4,1,4,1,4,3,4,60,8,4,1,5,1,5,1,5,1,5,1,6,1,6,3,6,68,
+	8,6,1,7,1,7,1,7,1,7,5,7,74,8,7,10,7,12,7,77,9,7,1,7,3,7,80,8,7,1,7,1,7,
+	1,7,1,7,3,7,86,8,7,1,8,3,8,89,8,8,1,8,1,8,3,8,93,8,8,1,8,1,8,3,8,97,8,8,
+	1,8,3,8,100,8,8,1,8,0,0,9,0,2,4,6,8,10,12,14,16,0,1,1,0,11,12,111,0,18,
+	1,0,0,0,2,28,1,0,0,0,4,30,1,0,0,0,6,41,1,0,0,0,8,59,1,0,0,0,10,61,1,0,0,
+	0,12,67,1,0,0,0,14,85,1,0,0,0,16,99,1,0,0,0,18,19,3,2,1,0,19,20,5,0,0,1,
+	20,1,1,0,0,0,21,29,3,8,4,0,22,29,3,14,7,0,23,29,5,18,0,0,24,29,3,16,8,0,
+	25,29,3,4,2,0,26,29,5,13,0,0,27,29,3,6,3,0,28,21,1,0,0,0,28,22,1,0,0,0,
+	28,23,1,0,0,0,28,24,1,0,0,0,28,25,1,0,0,0,28,26,1,0,0,0,28,27,1,0,0,0,29,
+	3,1,0,0,0,30,31,7,0,0,0,31,5,1,0,0,0,32,33,5,14,0,0,33,34,5,1,0,0,34,35,
+	5,18,0,0,35,42,5,2,0,0,36,37,5,14,0,0,37,38,5,1,0,0,38,39,3,8,4,0,39,40,
+	5,2,0,0,40,42,1,0,0,0,41,32,1,0,0,0,41,36,1,0,0,0,42,7,1,0,0,0,43,44,5,
+	3,0,0,44,49,3,10,5,0,45,46,5,4,0,0,46,48,3,10,5,0,47,45,1,0,0,0,48,51,1,
+	0,0,0,49,47,1,0,0,0,49,50,1,0,0,0,50,53,1,0,0,0,51,49,1,0,0,0,52,54,5,4,
+	0,0,53,52,1,0,0,0,53,54,1,0,0,0,54,55,1,0,0,0,55,56,5,5,0,0,56,60,1,0,0,
+	0,57,58,5,3,0,0,58,60,5,5,0,0,59,43,1,0,0,0,59,57,1,0,0,0,60,9,1,0,0,0,
+	61,62,3,12,6,0,62,63,5,6,0,0,63,64,3,2,1,0,64,11,1,0,0,0,65,68,5,18,0,0,
+	66,68,5,14,0,0,67,65,1,0,0,0,67,66,1,0,0,0,68,13,1,0,0,0,69,70,5,7,0,0,
+	70,75,3,2,1,0,71,72,5,4,0,0,72,74,3,2,1,0,73,71,1,0,0,0,74,77,1,0,0,0,75,
+	73,1,0,0,0,75,76,1,0,0,0,76,79,1,0,0,0,77,75,1,0,0,0,78,80,5,4,0,0,79,78,
+	1,0,0,0,79,80,1,0,0,0,80,81,1,0,0,0,81,82,5,8,0,0,82,86,1,0,0,0,83,84,5,
+	7,0,0,84,86,5,8,0,0,85,69,1,0,0,0,85,83,1,0,0,0,86,15,1,0,0,0,87,89,5,19,
+	0,0,88,87,1,0,0,0,88,89,1,0,0,0,89,90,1,0,0,0,90,100,5,20,0,0,91,93,5,19,
+	0,0,92,91,1,0,0,0,92,93,1,0,0,0,93,94,1,0,0,0,94,100,5,9,0,0,95,97,5,19,
+	0,0,96,95,1,0,0,0,96,97,1,0,0,0,97,98,1,0,0,0,98,100,5,10,0,0,99,88,1,0,
+	0,0,99,92,1,0,0,0,99,96,1,0,0,0,100,17,1,0,0,0,13,28,41,49,53,59,67,75,
+	79,85,88,92,96,99];
 
 	private static __ATN: ATN;
 	public static get _ATN(): ATN {
@@ -839,8 +845,8 @@ export class ScalarTypeInstanceContext extends TypeInstanceContext {
 		super(parser, ctx.parentCtx, ctx.invokingState);
 		super.copyFrom(ctx);
 	}
-	public TYPE_NAME(): TerminalNode {
-		return this.getToken(TASONParser.TYPE_NAME, 0);
+	public IDENTIFIER(): TerminalNode {
+		return this.getToken(TASONParser.IDENTIFIER, 0);
 	}
 	public STRING(): TerminalNode {
 		return this.getToken(TASONParser.STRING, 0);
@@ -861,8 +867,8 @@ export class ObjectTypeInstanceContext extends TypeInstanceContext {
 		super(parser, ctx.parentCtx, ctx.invokingState);
 		super.copyFrom(ctx);
 	}
-	public TYPE_NAME(): TerminalNode {
-		return this.getToken(TASONParser.TYPE_NAME, 0);
+	public IDENTIFIER(): TerminalNode {
+		return this.getToken(TASONParser.IDENTIFIER, 0);
 	}
 	public object(): ObjectContext {
 		return this.getTypedRuleContext(ObjectContext, 0) as ObjectContext;

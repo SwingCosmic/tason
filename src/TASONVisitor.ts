@@ -148,14 +148,14 @@ export class TASONVisitor {
   }
 
   ScalarTypeInstance(ctx: ScalarTypeInstanceContext) {
-    const typeName = ctx.TYPE_NAME().getText();
+    const typeName = ctx.IDENTIFIER().getText();
     const str = this.getTextValue(ctx.STRING());
 
     return this.createTypeInstance(typeName, str);
   }
 
   ObjectTypeInstance(ctx: ObjectTypeInstanceContext) {
-    const typeName = ctx.TYPE_NAME().getText();
+    const typeName = ctx.IDENTIFIER().getText();
     const obj = this.Object(ctx.object());
 
     return this.createTypeInstance(typeName, obj);
