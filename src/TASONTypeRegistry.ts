@@ -1,4 +1,4 @@
-import { SerializerOptions } from "./SerializerOptions";
+import { TASONSerializerOptions } from "./TASONSerializerOptions";
 import { Types, unsafeTypes, typeAlias } from "./types";
 import {
   getDeclaredType,
@@ -15,8 +15,8 @@ interface TASONRegistryEntry<T> {
 export default class TASONTypeRegistry {
   private readonly types: Map<string, TASONRegistryEntry<any>> = new Map();
 
-  private readonly options: SerializerOptions;
-  constructor(options: SerializerOptions) {
+  private readonly options: TASONSerializerOptions;
+  constructor(options: TASONSerializerOptions) {
     this.options = options;
     for (const [name, type] of Object.entries(Types)) {
       if (unsafeTypes.includes(name) && !options.allowUnsafeTypes) {

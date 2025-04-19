@@ -1,4 +1,4 @@
-import { SerializerOptions } from "./SerializerOptions";
+import { TASONSerializerOptions } from "./TASONSerializerOptions";
 import type TASONTypeRegistry from "./TASONTypeRegistry";
 import { Buffer } from "./types/Buffer";
 import { DictionaryTypeInfo } from "./types/Dictionary";
@@ -6,9 +6,9 @@ import { TASONTypeInfo } from "./types/TASONTypeInfo";
 import typeDetect from "type-detect";
 
 export class TASONGenerator {
-  private options: Required<SerializerOptions>;
+  private options: Required<TASONSerializerOptions>;
   private registry: TASONTypeRegistry;
-  constructor(registry: TASONTypeRegistry, options: Required<SerializerOptions>) {
+  constructor(registry: TASONTypeRegistry, options: Required<TASONSerializerOptions>) {
     this.registry = registry;
     this.options = options;
   }

@@ -23,14 +23,14 @@ import {
 import type TASONTypeRegistry from "./TASONTypeRegistry";
 import unescape from "unescape-js";
 import Decimal from "decimal.js";
-import { SerializerOptions } from "./SerializerOptions";
+import { TASONSerializerOptions } from "./TASONSerializerOptions";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
-  private options: Required<SerializerOptions>;
+  private options: Required<TASONSerializerOptions>;
   constructor(
     registry: TASONTypeRegistry,
-    options: Required<SerializerOptions>
+    options: Required<TASONSerializerOptions>
   ) {
     this.registry = registry;
     this.options = options;

@@ -13,7 +13,7 @@ import TASONLexer from "./grammar/TASONLexer";
 import TASONParser from "./grammar/TASONParser";
 import { TASONVisitor } from "./TASONVisitor";
 import { TASONGenerator } from "./TASONGenerator";
-import { SerializerOptions, SerializerOptionsInit } from "./SerializerOptions";
+import { TASONSerializerOptions, TASONSerializerOptionsInit } from "./TASONSerializerOptions";
 
 class ThrowingErrorListener implements ErrorListener<any> {
   syntaxError(
@@ -30,11 +30,11 @@ class ThrowingErrorListener implements ErrorListener<any> {
 
 export default class TASONSerializer {
   readonly registry: TASONTypeRegistry;
-  readonly options: Required<SerializerOptions>;
+  readonly options: Required<TASONSerializerOptions>;
 
   private readonly visitor: TASONVisitor;
 
-  constructor(options: SerializerOptionsInit = {}) {
+  constructor(options: TASONSerializerOptionsInit = {}) {
     options.allowUnsafeTypes ??= false;
     options.nullPrototypeObject ??= false;
     options.allowDuplicatedKeys ??= true;

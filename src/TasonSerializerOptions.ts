@@ -1,7 +1,7 @@
 import TASONTypeRegistry from "./TASONTypeRegistry";
 
 
-export interface SerializerOptions {
+export interface TASONSerializerOptions {
   /** 是否允许使用不安全的类型，默认 false */
   allowUnsafeTypes?: boolean;
   /** 是否使用内置字典类型来序列化Map，默认 false（序列化为普通对象） */
@@ -16,6 +16,6 @@ export interface SerializerOptions {
   maxDepth?: number;
 }
 
-export interface SerializerOptionsInit extends SerializerOptions {
+export interface TASONSerializerOptionsInit extends TASONSerializerOptions {
   registry?: TASONTypeRegistry;
 }
