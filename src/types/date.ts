@@ -1,11 +1,21 @@
 import { defineType } from "./TASONTypeInfo";
+import { format, formatISO, formatRFC3339 } from "date-fns";
+import { utc } from "@date-fns/utc";
 
+export const StandardFormat = "yyyy-MM-ddTHH:mm:ss.SSSZ";
+
+export const StandardDateFormat = "yyyy-MM-dd";
+
+export const StandardTimeFormat = "HH:mm:ss.SSS";
 
 
 const DateTypeInfo = defineType({
   kind: "scalar",
   ctor: Date,
-  serialize: (value) => value.toISOString(),
+  serialize: (value) => formatRFC3339(value, { 
+    fractionDigits: 3,
+    in: utc
+  }),
   deserialize: (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -47,7 +57,62 @@ const TimestampTypeInfo = defineType({
   },
 });
 
+
+export class DateOnly {
+  readonly date: Date;
+
+  constructor(date: Date) {
+    this.date = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  toString(): string {
+    return formatISO(this.date, { representation: "date" });
+  }
+}
+
+const DateOnlyTypeInfo = defineType({
+  kind: "scalar",
+  ctor: DateOnly,
+  serialize: (value) => value.toString(),
+  deserialize: (value) => {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new TypeError(`Invalid DateOnly: ${value}`);
+    }
+    return new DateOnly(date);
+  }
+});
+
+
+export class TimeOnly {
+  readonly time: Date;
+
+  constructor(time: Date) {
+    this.time = new Date(1970, 0, 1, time.getHours(), time.getMinutes(), time.getSeconds(), time.getMilliseconds());
+  }
+
+  toString(): string {
+    return format(this.time, StandardTimeFormat);
+  }
+
+}
+
+const TimeOnlyTypeInfo = defineType<TimeOnly>({
+  kind: "scalar",
+  ctor: TimeOnly,
+  serialize: (value) => value.toString(),
+  deserialize: (value) => {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new TypeError(`Invalid TimeOnly: ${value}`);
+    }
+    return new TimeOnly(date);
+  },
+});
+
 export default {
   Date: DateTypeInfo,
   Timestamp: TimestampTypeInfo,
+  DateOnly: DateOnlyTypeInfo,
+  TimeOnly: TimeOnlyTypeInfo,
 };

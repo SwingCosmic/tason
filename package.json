@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "0.11.0",
+  "version": "0.12.3",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
   "keywords": [
@@ -40,8 +40,10 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
+    "@date-fns/utc": "^2.1.0",
     "antlr4": "^4.13.2",
     "base64-arraybuffer": "^1.0.2",
+    "date-fns": "^4.1.0",
     "decimal.js": "^10.5.0",
     "js-string-escape": "^1.0.1",
     "reflect-metadata": "^0.2.2",

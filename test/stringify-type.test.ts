@@ -3,6 +3,7 @@ import TASON from "@/index";
 import { UInt8, Decimal128, Int16, Int32, Int64 } from "@/types/numbers";
 import { JSON as _JSON } from "@/types/json";
 import { Buffer as _Buffer } from "@/types/Buffer";
+import { DateOnly, TimeOnly } from "@/types/date";
 
 describe("内置类型序列化测试", () => {
   test("numbers", () => {
@@ -45,5 +46,16 @@ describe("内置类型序列化测试", () => {
       .toEqual(`Buffer("base64,eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")`);
     expect(TASON.stringify(new _Buffer(`hex, 2e09c9650a9779f1ce8dc232881f06736c6e5e0a3236292d2679ffce2e9f49bc`)))
       .toEqual(`Buffer("hex,2E09C9650A9779F1CE8DC232881F06736C6E5E0A3236292D2679FFCE2E9F49BC")`);
+  });
+
+  test("Date", () => {
+    expect(TASON.stringify(new Date("2023-01-15 00:00:00Z")))
+      .toEqual(`Date("2023-01-15T00:00:00.000Z")`);
+
+    expect(TASON.stringify(new DateOnly(new Date(2024, 3, 26))))
+      .toEqual(`DateOnly("2024-04-26")`);
+
+    expect(TASON.stringify(new TimeOnly(new Date("1919-08-10 11:45:14"))))
+      .toEqual(`TimeOnly("11:45:14.000")`);
   });
 });
