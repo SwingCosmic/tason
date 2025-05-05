@@ -161,6 +161,10 @@ export class TASONGenerator {
         if (valueStr === undefined) {
           continue;
         }
+
+        if (this.options.nullPropertyHandling === "ignore" && value == null) {
+          continue;
+        }
         const space = this.options.indent === false ? "" : " ";
         pairs.push(`${this.indent()}${keyStr}:${space}${valueStr}`);
       }

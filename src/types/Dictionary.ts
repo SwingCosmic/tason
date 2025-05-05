@@ -1,14 +1,14 @@
 import { defineType } from "./TASONTypeInfo";
 
 export interface MapStore<K = any, V = any> {
-  keyValuePairs: [K, V][];
+  pairs: [K, V][];
 }
 
 export const DictionaryTypeInfo = defineType({
   kind: "object",
   ctor: Map,
   serialize: (value, options) => {
-    let keyValuePairs = Array.from(value.entries()).filter(p => {
+    let pairs = Array.from(value.entries()).filter(p => {
       for (const e of p) {
         if (typeof e === "function") {
           return false;
@@ -21,11 +21,11 @@ export const DictionaryTypeInfo = defineType({
     });
 
     return {
-      keyValuePairs,
+      pairs,
     } as MapStore;
   },
   deserialize: (value: MapStore) => {
-    const entries = value.keyValuePairs;
+    const entries = value.pairs;
     return new Map(entries);
   },
 });

@@ -10,6 +10,8 @@ export interface TASONSerializerOptions {
   nullPrototypeObject?: boolean;
   /** 是否允许对象拥有重复的键，默认true */
   allowDuplicatedKeys?: boolean;
+  /** 遇到null时的序列化方式 */
+  nullPropertyHandling?: NullValueHandling;
   /** 序列化时的缩进大小（单位为空格数），0表示不缩进，false表示压缩内容。默认false */
   indent?: number | false;
   /** 最大递归深度，默认64 */
@@ -19,3 +21,6 @@ export interface TASONSerializerOptions {
 export interface TASONSerializerOptionsInit extends TASONSerializerOptions {
   registry?: TASONTypeRegistry;
 }
+
+
+export type NullValueHandling = "preserve" | "ignore";
