@@ -7,6 +7,7 @@ import { BufferTypeInfo } from "./Buffer";
 import { UUIDTypeInfo } from "./UUID";
 import DateTypes from "./date";
 import { DictionaryTypeInfo } from "./Dictionary";
+import { Constructor } from "type-fest";
 
 export const unsafeTypes = ["Symbol"];
 
@@ -30,10 +31,13 @@ export const Types = {
 
 
 export const unsafeBuiltinCtors = [
-  SharedArrayBuffer,
   WeakMap,
   WeakSet,
-];
+] as Constructor<any>[];
+// 由于安全限制，部分情况下浏览器不提供SharedArrayBuffer构造函数
+if (typeof SharedArrayBuffer === "function") {
+  unsafeBuiltinCtors.push(SharedArrayBuffer);
+}
 
 export const typeAlias = {
   Byte: "UInt8",
