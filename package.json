@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
   "keywords": [
@@ -15,7 +15,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "generate": "cd src/grammar && antlr4 -Dlanguage=TypeScript TASON.g4",
+    "generate": "cd src/grammar && antlr4 -v 4.13.2 -Dlanguage=TypeScript TASON.g4",
     "build": "tsc && tsc-alias",
     "test": "jest"
   },

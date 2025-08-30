@@ -61,14 +61,15 @@ array
 //#region string
 
 STRING
-  : '"' (ESC | SAFE_STRING_CHAR)* '"'
-  | '\'' (ESC | SAFE_STRING_CHAR)* '\''
+  : '"' (ESC | SAFE_CHAR_DOUBLE)* '"'
+  | '\'' (ESC | SAFE_CHAR_SINGLE)* '\''
   ;
 
 fragment ESC: '\\' (["'\\bfnrtv0] | UNICODE | HEX_ESC);
 fragment HEX_ESC: 'x' HEX HEX;
 fragment UNICODE: 'u' HEX HEX HEX HEX;
-fragment SAFE_STRING_CHAR: ~["'\\\u0000-\u001F];
+fragment SAFE_CHAR_SINGLE: ~['\\\u0000-\u001F];
+fragment SAFE_CHAR_DOUBLE: ~["\\\u0000-\u001F];
 
 //#region
 

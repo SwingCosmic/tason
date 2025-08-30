@@ -86,4 +86,11 @@ describe("parse", () => {
 
     expect(s.parse(`Byte("120")`)).toEqual(new UInt8("120"));
   });
+
+  test("quote", () => {
+    const s = new TASON.Serializer();
+    expect(s.parse(`'"\\''`)).toEqual(`"'`);
+
+    expect(s.parse(`"'\\""`)).toEqual(`'"`);
+  });
 });
