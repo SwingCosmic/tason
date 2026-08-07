@@ -34,7 +34,7 @@ const obj1Str = `{
     ]
   }),
   "嗯嗯嗯啊啊啊": [
-    BigInt("4565846")
+    4565846
   ]
 }`.replaceAll(/[\r\n]/g, "\n");
 
@@ -51,7 +51,7 @@ describe("stringify", () => {
     expect(s.stringify(obj1)).toEqual(
       `{a:"dfgfd",` +
         `c:User({name:"ss",friends:[User({name:"foo",friends:[]}),User({name:"bar",friends:[]})]}),` +
-        `"嗯嗯嗯啊啊啊":[BigInt("4565846")]}`,
+        `"嗯嗯嗯啊啊啊":[4565846]}`,
     );
   });
 

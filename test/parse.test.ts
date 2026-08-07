@@ -82,9 +82,14 @@ describe("parse", () => {
   test("别名", () => {
     const s = new TASON.Serializer();
     s.registry.registerTypeAlias("Decimal", "Decimal128");
-    expect(s.parse(`Decimal("33.455")`)).toEqual(new Decimal128("33.455"));
+    // 默认 record-type 阶段 1 降级为 native：拆箱
+    expect(s.parse(`Decimal("33.455")`)).toEqual(new Decimal128("33.455").value);
+    expect(s.parse(`Byte("120")`)).toBe(120);
 
-    expect(s.parse(`Byte("120")`)).toEqual(new UInt8("120"));
+    const keep = new TASON.Serializer({ deserializeNumberHandling: "all" });
+    keep.registry.registerTypeAlias("Decimal", "Decimal128");
+    expect(keep.parse(`Decimal("33.455")`)).toEqual(new Decimal128("33.455"));
+    expect(keep.parse(`Byte("120")`)).toEqual(new UInt8("120"));
   });
 
   test("quote", () => {

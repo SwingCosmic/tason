@@ -4,6 +4,12 @@ import { Buffer } from "./types/Buffer";
 import { DictionaryTypeInfo } from "./types/Dictionary";
 import { TASONTypeInfo } from "./types/TASONTypeInfo";
 import typeDetect from "type-detect";
+import {
+  isNumberTypeName,
+  resolveSerializeNumberHandling,
+  trySerializeNumberAsLiteral,
+  trySerializeNumberAsSafeNumberLiteral,
+} from "./types/NumberHandling";
 
 export class TASONGenerator {
   private options: Required<TASONSerializerOptions>;
@@ -29,10 +35,7 @@ export class TASONGenerator {
     } else if (typeof value === "number") {
       return this.NumberValue(value);
     } else if (typeof value === "bigint") {
-      return this.TypeInstanceValue(value, {
-        ...this.registry.getDefaultType("BigInt")!,
-        name: "BigInt",
-      });
+      return this.BigIntValue(value);
     } else if (typeof value === "symbol") {
       if (!this.options.allowUnsafeTypes) {
         throw new Error(`Cannot serialize symbol type '${String(value)}'`);
@@ -71,6 +74,27 @@ export class TASONGenerator {
 
   NumberValue(value: number) {
     return value.toString(10);
+  }
+
+  BigIntValue(value: bigint) {
+    const effective = resolveSerializeNumberHandling(
+      this.options.serializeNumberHandling,
+    );
+    if (effective === "none") {
+      // 强制字面量，含超大整数
+      return trySerializeNumberAsLiteral(value)!;
+    }
+    if (effective === "unsafe-only") {
+      const literal = trySerializeNumberAsSafeNumberLiteral(value);
+      if (literal != null) {
+        return literal;
+      }
+    }
+    // all，或 unsafe-only 下超出安全范围
+    return this.TypeInstanceValue(value, {
+      ...this.registry.getDefaultType("BigInt")!,
+      name: "BigInt",
+    });
   }
 
   MaybeArrayValue(value: Iterable<any>) {
@@ -139,9 +163,32 @@ export class TASONGenerator {
     const type = this.registry.tryGetTypeInfo(value);
     if (!type) {
       return this.ObjectValue(value);
-    } else {
-      return this.TypeInstanceValue(value, type);
     }
+
+    // 数值包装：none 强制字面量；unsafe-only 尽量 number；all 始终 TypeName
+    if (isNumberTypeName(type.name)) {
+      const effective = resolveSerializeNumberHandling(
+        this.options.serializeNumberHandling,
+      );
+      if (effective === "none") {
+        const literal = trySerializeNumberAsLiteral(value);
+        if (literal != null) {
+          return literal;
+        }
+        // 内置数值包装应总能字面量化；兜底仍避免静默装箱
+        throw new Error(
+          `serializeNumberHandling "none" cannot emit a bare literal for type ${type.name}`,
+        );
+      }
+      if (effective === "unsafe-only") {
+        const literal = trySerializeNumberAsSafeNumberLiteral(value);
+        if (literal != null) {
+          return literal;
+        }
+      }
+    }
+
+    return this.TypeInstanceValue(value, type);
   }
 
   ObjectValue(obj: Record<string, any>) {

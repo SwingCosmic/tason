@@ -8,26 +8,35 @@ import { Timestamp } from "@/types/date";
 
 
 describe("内置类型解析测试", () => {
-  test("numbers", () => {
-    expect(TASON.parse('UInt8("64")'))
-      .toEqual(new UInt8('64'));
-    expect(TASON.parse("Int16('-0xAB')"))
-      .toEqual(new Int16('-0xAB'));
-    expect(TASON.parse("Int32('0o123456')"))
-      .toEqual(new Int32('0o123456'));
-    expect(TASON.parse("Int64('0xabCDef123456789')"))
-      .toEqual(new Int64('0xABcdEF123456789'));
+  test("numbers - default", () => {
+    expect(TASON.parse('UInt8("64")')).toBe(64);
+    expect(TASON.parse("Int16('-0xAB')")).toBe(-0xAB);
+    expect(TASON.parse("Int32('0o123456')")).toBe(0o123456);
+    expect(TASON.parse("Int64('0xabCDef123456789')")).toBe(0xabcdeF123456789n);
     expect(TASON.parse("Decimal128('3.141592653589793238462643383279')"))
-      .toEqual(new Decimal128('3.141592653589793238462643383279'));
+      .toEqual(new Decimal128('3.141592653589793238462643383279').value);
     expect(TASON.parse("BigInt('340282366920938463463374607431768211456')"))
       .toEqual(2n ** 128n);
 
     expect(() => TASON.parse(`UInt8('-100')`)).toThrow();
     expect(() => TASON.parse(`Int16('30023.43')`)).toThrow();
     expect(() => TASON.parse(`Int16('.5443')`)).toThrow();
-    expect(TASON.parse(`Int16('8080.')`)).toEqual(new Int16('8080'));
+    expect(TASON.parse(`Int16('8080.')`)).toBe(8080);
     expect(() => TASON.parse(`Int32('${Int32.MAX_VALUE + 1}')`)).toThrow();
     expect(() => TASON.parse(`Int64('${2n ** 64n}')`)).toThrow();
+  });
+
+  test("numbers - deserializeNumberHandling:all", () => {
+    const s = new TASON.Serializer({ deserializeNumberHandling: "all" });
+    expect(s.parse('UInt8("64")')).toEqual(new UInt8('64'));
+    expect(s.parse("Int16('-0xAB')")).toEqual(new Int16('-0xAB'));
+    expect(s.parse("Int32('0o123456')")).toEqual(new Int32('0o123456'));
+    expect(s.parse("Int64('0xabCDef123456789')"))
+      .toEqual(new Int64('0xABcdEF123456789'));
+    expect(s.parse("Decimal128('3.141592653589793238462643383279')"))
+      .toEqual(new Decimal128('3.141592653589793238462643383279'));
+    expect(s.parse("BigInt('340282366920938463463374607431768211456')"))
+      .toEqual(2n ** 128n);
   });
 
   test("RegExp", () => {

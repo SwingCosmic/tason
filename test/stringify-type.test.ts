@@ -6,18 +6,29 @@ import { Buffer as _Buffer } from "@/types/Buffer";
 import { DateOnly, TimeOnly } from "@/types/date";
 
 describe("内置类型序列化测试", () => {
-  test("numbers", () => {
-    expect(TASON.stringify(new UInt8("64")))
-      .toEqual(`UInt8("64")`);
-    expect(TASON.stringify(new Int16("-0xAB")))
-      .toEqual(`Int16("-171")`);
-    expect(TASON.stringify(new Int32("0o123456")))
-      .toEqual(`Int32("42798")`);
+  test("numbers (default unsafe-only: safe → number literal)", () => {
+    expect(TASON.stringify(new UInt8("64"))).toEqual("64");
+    expect(TASON.stringify(new Int16("-0xAB"))).toEqual("-171");
+    expect(TASON.stringify(new Int32("0o123456"))).toEqual("42798");
+    // 超出 MAX_SAFE_INTEGER，仍写 TypeName
     expect(TASON.stringify(new Int64("0xabCDef123456789")))
       .toEqual(`Int64("773738363261118345")`);
     expect(TASON.stringify(new Decimal128('3.141592653589793238462643383279')))
       .toEqual(`Decimal128("3.141592653589793238462643383279")`);
     expect(TASON.stringify(2n ** 128n))
+      .toEqual(`BigInt("340282366920938463463374607431768211456")`);
+  });
+
+  test("numbers (serialize all keeps TypeName)", () => {
+    const s = new TASON.Serializer({ serializeNumberHandling: "all" });
+    expect(s.stringify(new UInt8("64"))).toEqual(`UInt8("64")`);
+    expect(s.stringify(new Int16("-0xAB"))).toEqual(`Int16("-171")`);
+    expect(s.stringify(new Int32("0o123456"))).toEqual(`Int32("42798")`);
+    expect(s.stringify(new Int64("0xabCDef123456789")))
+      .toEqual(`Int64("773738363261118345")`);
+    expect(s.stringify(new Decimal128('3.141592653589793238462643383279')))
+      .toEqual(`Decimal128("3.141592653589793238462643383279")`);
+    expect(s.stringify(2n ** 128n))
       .toEqual(`BigInt("340282366920938463463374607431768211456")`);
   });
 

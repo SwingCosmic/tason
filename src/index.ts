@@ -4,6 +4,14 @@ import TASONSerializer from "./TASONSerializer";
 import TASONTypeRegistry from "./TASONTypeRegistry";
 import { Types } from "./types";
 
+export type {
+  TASONSerializerOptions,
+  TASONSerializerOptionsInit,
+  SerializeNumberHandling,
+  DeserializeNumberHandling,
+  NullValueHandling,
+} from "./TASONSerializerOptions";
+
 export interface TASONStatic extends TASONSerializer {
   Serializer: typeof TASONSerializer;
   Types: typeof Types;

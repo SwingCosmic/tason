@@ -24,6 +24,7 @@ import type TASONTypeRegistry from "./TASONTypeRegistry";
 import unescape from "unescape-js";
 import Decimal from "decimal.js";
 import { TASONSerializerOptions } from "./TASONSerializerOptions";
+import { unwrapNumberInstance } from "./types/NumberHandling";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
@@ -164,7 +165,8 @@ export class TASONVisitor {
   private createTypeInstance(typeName: string, value: any) {
     const typeInfo = this.registry.getDefaultType(typeName);
     if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
-    return this.registry.createInstance(typeInfo, value);
+    const instance = this.registry.createInstance(typeInfo, value);
+    return unwrapNumberInstance(instance, this.options.deserializeNumberHandling);
   }
 
   private getTextValue(ctx: TerminalNode) {
