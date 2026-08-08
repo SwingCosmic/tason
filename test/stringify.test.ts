@@ -112,7 +112,7 @@ describe("stringify", () => {
       .toEqual(`Dictionary({pairs:[[{a:1},Dictionary({pairs:[[1,2]]})]]})`);
   });
 
-  test("鸭子类型 - metadata", () => {
+  test("duck type - metadata", () => {
     @TASONType("User", { kind: "object" })
     class AnotherUser {
       name: string;

@@ -1,187 +1,135 @@
-import { describe, expect, it, test } from "@jest/globals";
+import { describe, expect, test } from "@jest/globals";
 import * as v from "valibot";
+import Decimal from "decimal.js";
 import TASON from "@/index";
 import { createValibotAdapter } from "@/schema";
-import { Int64, Int32 } from "@/types/numbers";
+import { Buffer as TBuffer } from "@/types/Buffer";
+import { UUID } from "@/types/UUID";
+import {
+  DateOnly,
+  TimeOnly,
+  Timestamp,
+} from "@/types/date";
+import { JSON as TJSON } from "@/types/json";
+import { Decimal128 } from "@/types/numbers";
 
-/** 阶段 2.2 解锁开关；2.1 期间 S10–S17 使用 skip */
-const PHASE_2_2 = false;
-const it22 = PHASE_2_2 ? it : it.skip;
+/**
+ * schema / ClassMetadata（数值矩阵见 number-handling.test.ts）
+ */
 
-class User {
+function createSerializer(
+  options: ConstructorParameters<typeof TASON.Serializer>[0] = {},
+) {
+  return new TASON.Serializer({ indent: false, ...options });
+}
+
+class Node {
   id!: bigint;
   name!: string;
-  age!: number;
+  tags!: string[];
+  kids!: number[][];
+  meta!: { label: string; score: bigint };
 
-  constructor(init?: Partial<User>) {
+  constructor(init?: Partial<Node>) {
     if (init) Object.assign(this, init);
   }
 }
 
-const UserSchema = v.object({
+const NodeSchema = v.object({
   id: v.bigint(),
   name: v.string(),
-  age: v.number(),
+  tags: v.array(v.string()),
+  kids: v.array(v.array(v.number())),
+  meta: v.object({
+    label: v.string(),
+    score: v.bigint(),
+  }),
 });
 
-function createSerializer(options: ConstructorParameters<typeof TASON.Serializer>[0] = {}) {
-  const s = new TASON.Serializer({ indent: false, ...options });
-  return s;
-}
-
-function registerUserWithSchema(
+function registerNode(
   s: InstanceType<typeof TASON.Serializer>,
   withAdapter = true,
+  schema: unknown = NodeSchema,
 ) {
   if (withAdapter) {
     s.registry.setSchemaAdapter(createValibotAdapter());
   }
-  s.registry.registerType(
-    "User",
-    { kind: "object", ctor: User },
-    { schema: UserSchema },
-  );
+  s.registry.registerType("Node", { kind: "object", ctor: Node }, { schema });
 }
 
-describe("runtime schema (phase 2)", () => {
-  describe("2.1 — leaf contract (real assertions)", () => {
-    test("S1: adapter + metadata id:bigint, parse Int64 → 1n", () => {
-      const s = createSerializer();
-      registerUserWithSchema(s);
-      const u = s.parse<User>(`User({id:Int64("1"),name:"a",age:18})`);
-      expect(u).toBeInstanceOf(User);
-      expect(u.id).toBe(1n);
-      expect(typeof u.id).toBe("bigint");
-      expect(u.name).toBe("a");
-      expect(u.age).toBe(18);
-    });
+class Bundle {
+  bi!: bigint;
+  num!: number;
+  dec!: Decimal128 | Decimal;
+  buf!: TBuffer;
+  uuid!: UUID;
+  when!: Date;
+  re!: RegExp;
+  ts!: Timestamp;
+  day!: DateOnly;
+  clock!: TimeOnly;
+  json!: TJSON;
+  note!: string;
 
-    test("S2: age:number, parse Int32 → number 18", () => {
-      const s = createSerializer();
-      registerUserWithSchema(s);
-      const u = s.parse<User>(`User({id:Int64("1"),name:"a",age:Int32("18")})`);
-      expect(u.age).toBe(18);
-      expect(typeof u.age).toBe("number");
-      expect(u.age).not.toBeInstanceOf(Int32);
-    });
+  constructor(init?: Partial<Bundle>) {
+    if (init) Object.assign(this, init);
+  }
+}
 
-    test("S3: ObjectType without metadata — phase 1 behavior", () => {
-      const s = createSerializer();
-      s.registry.setSchemaAdapter(createValibotAdapter());
-      s.registry.registerType("User", { kind: "object", ctor: User });
-      // 无 metadata：Int64 仍按 record-type→native 拆箱为 bigint
-      const u = s.parse<User>(`User({id:Int64("1"),name:"a",age:18})`);
-      expect(u.id).toBe(1n);
-      expect(u.age).toBe(18);
-    });
+const BundleSchema = v.object({
+  bi: v.bigint(),
+  num: v.number(),
+  dec: v.instance(Decimal128),
+  buf: v.instance(TBuffer),
+  uuid: v.instance(UUID),
+  when: v.date(),
+  re: v.instance(RegExp),
+  ts: v.instance(Timestamp),
+  day: v.instance(DateOnly),
+  clock: v.instance(TimeOnly),
+  json: v.instance(TJSON),
+  note: v.string(),
+});
 
-    test("S4: stringify User with metadata follows serialize Handling", () => {
-      const s = createSerializer({ serializeNumberHandling: "unsafe-only" });
-      registerUserWithSchema(s);
-      const user = new User({ id: 1n, name: "a", age: 18 });
-      // unsafe-only：安全 bigint 裸写，number 裸写
-      expect(s.stringify(user)).toBe(`User({id:1,name:"a",age:18})`);
+function setupBundle(
+  opts: ConstructorParameters<typeof TASON.Serializer>[0] = {},
+) {
+  const s = createSerializer(opts);
+  s.registry.setSchemaAdapter(createValibotAdapter());
+  s.registry.registerType(
+    "Bundle",
+    { kind: "object", ctor: Bundle },
+    { schema: BundleSchema },
+  );
+  return s;
+}
 
-      const sAll = createSerializer({ serializeNumberHandling: "all" });
-      registerUserWithSchema(sAll);
-      // bigint 契约 + all → BigInt TypeName；number 仍裸字面量
-      expect(sAll.stringify(user)).toBe(`User({id:BigInt("1"),name:"a",age:18})`);
+const fullBundleText = [
+  "Bundle({",
+  'bi:Int64("42"),',
+  "num:7,",
+  'dec:Decimal128("3.14159265358979323846"),',
+  'buf:Buffer("base64,YQ=="),',
+  'uuid:UUID("550e8400-e29b-41d4-a716-446655440000"),',
+  'when:Date("2023-01-15T00:00:00.000Z"),',
+  're:RegExp("/foo+/gi"),',
+  'ts:Timestamp("1700000000000"),',
+  'day:DateOnly("2024-04-26"),',
+  'clock:TimeOnly("11:45:14.000"),',
+  'json:JSON("{\\"k\\":1}"),',
+  'note:"hello"',
+  "})",
+].join("");
 
-      const unsafe = new User({
-        id: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
-        name: "b",
-        age: 20,
-      });
-      expect(s.stringify(unsafe)).toBe(
-        `User({id:BigInt("${BigInt(Number.MAX_SAFE_INTEGER) + 1n}"),name:"b",age:20})`,
-      );
-    });
-
-    test("S5: unrecognized schema is ignored, no throw", () => {
-      const s = createSerializer();
-      s.registry.setSchemaAdapter(createValibotAdapter());
-      s.registry.registerType(
-        "User",
-        { kind: "object", ctor: User },
-        { schema: { notAValibotSchema: true } },
-      );
-      // adapter.isSchema 对无 type 的对象为 false → 忽略契约
-      expect(() =>
-        s.parse(`User({id:Int64("1"),name:"a",age:18})`),
-      ).not.toThrow();
-      const u = s.parse<User>(`User({id:Int64("1"),name:"a",age:18})`);
-      expect(u.id).toBe(1n);
-    });
-
-    test("S6: native + metadata ignores contract, full unbox", () => {
-      const s = createSerializer({ deserializeNumberHandling: "native" });
-      registerUserWithSchema(s);
-      const u = s.parse<User>(`User({id:Int64("1"),name:"a",age:Int32("18")})`);
-      expect(u.id).toBe(1n);
-      expect(u.age).toBe(18);
-      // 与无契约 native 一致：不保留包装
-      expect(u.id).not.toBeInstanceOf(Int64);
-      expect(u.age).not.toBeInstanceOf(Int32);
-    });
-
-    test("S7: no adapter, has schema — phase 1 behavior", () => {
-      const s = createSerializer();
-      // 故意不 setSchemaAdapter
-      s.registry.registerType(
-        "User",
-        { kind: "object", ctor: User },
-        { schema: UserSchema },
-      );
-      expect(s.registry.getSchemaAdapter()).toBeUndefined();
-      const u = s.parse<User>(`User({id:Int64("1"),name:"a",age:18})`);
-      expect(u.id).toBe(1n);
-      expect(u.age).toBe(18);
-    });
-
-    test("S8: set replaces / null clears adapter", () => {
-      const s = createSerializer();
-      registerUserWithSchema(s);
-      expect(s.registry.getSchemaAdapter()).toBeDefined();
-
-      // 替换为无法识别任何 schema 的 adapter
-      s.registry.setSchemaAdapter({
-        isSchema: (_v): _v is unknown => false,
-        objectEntries: () => null,
-        arrayElement: () => null,
-        runtimeType: () => "unknown",
-        instanceCtor: () => null,
-      });
-      // isSchema 恒 false → 忽略契约，仍可 parse
-      expect(s.parse(`User({id:Int64("2"),name:"x",age:1})`)).toMatchObject({
-        id: 2n,
-        name: "x",
-        age: 1,
-      });
-
-      s.registry.setSchemaAdapter(null);
-      expect(s.registry.getSchemaAdapter()).toBeUndefined();
-      const u = s.parse<User>(`User({id:Int64("3"),name:"y",age:2})`);
-      expect(u.id).toBe(3n);
-    });
-
-    test("S9: getClassMetadata readable; no public getSchema", () => {
-      const s = createSerializer();
-      registerUserWithSchema(s);
-      const meta = s.registry.getClassMetadata("User");
-      expect(meta).toBeDefined();
-      expect(meta!.schema).toBe(UserSchema);
-      // 无 getSchema API
-      expect((s.registry as any).getSchema).toBeUndefined();
-      expect(s.registry.getClassMetadata("NoSuchType")).toBeUndefined();
-    });
-
-    test("default registry has no schema adapter", () => {
-      const s = createSerializer();
-      expect(s.registry.getSchemaAdapter()).toBeUndefined();
+describe("runtime schema", () => {
+  describe("adapter", () => {
+    test("default unregistered", () => {
+      expect(createSerializer().registry.getSchemaAdapter()).toBeUndefined();
       expect(TASON.registry.getSchemaAdapter()).toBeUndefined();
     });
 
-    test("createValibotAdapter maps leaf kinds", () => {
+    test("valibot leaf and structure kinds", () => {
+      // optional/nullable 解包到内层 RuntimeType
       const adapter = createValibotAdapter();
       const schema = v.object({
         a: v.bigint(),
@@ -190,114 +138,378 @@ describe("runtime schema (phase 2)", () => {
         d: v.boolean(),
         e: v.array(v.number()),
         f: v.optional(v.bigint()),
+        g: v.nullable(v.string()),
+        nest: v.object({ x: v.number() }),
         re: v.instance(RegExp),
         when: v.date(),
       });
       expect(adapter.isSchema(schema)).toBe(true);
-      const entries = [...adapter.objectEntries(schema)!];
-      const kinds = Object.fromEntries(
-        entries.map(([k, s]) => [k, adapter.runtimeType(s)]),
-      );
-      expect(kinds).toEqual({
-        a: "bigint",
-        b: "number",
-        c: "string",
-        d: "boolean",
-        e: "array",
-        f: "bigint",
-        re: "instance",
-        when: "instance",
-      });
-      expect(adapter.instanceCtor(entries.find(([k]) => k === "re")![1])).toBe(
-        RegExp,
-      );
-      expect(adapter.instanceCtor(entries.find(([k]) => k === "when")![1])).toBe(
-        Date,
-      );
-      expect(adapter.arrayElement(entries.find(([k]) => k === "e")![1])).toBeDefined();
-      expect(adapter.runtimeType(adapter.arrayElement(entries.find(([k]) => k === "e")![1])!)).toBe(
+      expect(adapter.isSchema({ notASchema: true })).toBe(false);
+
+      const entries = Object.fromEntries(adapter.objectEntries(schema)!);
+      expect(adapter.runtimeType(entries.a)).toBe("bigint");
+      expect(adapter.runtimeType(entries.b)).toBe("number");
+      expect(adapter.runtimeType(entries.c)).toBe("string");
+      expect(adapter.runtimeType(entries.d)).toBe("boolean");
+      expect(adapter.runtimeType(entries.e)).toBe("array");
+      expect(adapter.runtimeType(entries.f)).toBe("bigint");
+      expect(adapter.runtimeType(entries.g)).toBe("string");
+      expect(adapter.runtimeType(entries.nest)).toBe("object");
+      expect(adapter.runtimeType(entries.re)).toBe("instance");
+      expect(adapter.runtimeType(entries.when)).toBe("instance");
+      expect(adapter.instanceCtor(entries.re)).toBe(RegExp);
+      expect(adapter.instanceCtor(entries.when)).toBe(Date);
+      expect(adapter.runtimeType(adapter.arrayElement(entries.e)!)).toBe(
         "number",
       );
+      expect(
+        adapter.runtimeType(
+          Object.fromEntries(adapter.objectEntries(entries.nest)!).x,
+        ),
+      ).toBe("number");
     });
 
-    test("S-instance: TypeInstance → Date/RegExp; string literals stay strings", () => {
-      class Event {
-        when!: Date | string;
-        pattern!: RegExp | string;
-        note!: string;
-        constructor(init?: Partial<Event>) {
-          if (init) Object.assign(this, init);
-        }
-      }
-      const s = createSerializer();
-      s.registry.setSchemaAdapter(createValibotAdapter());
-      s.registry.registerType(
-        "Event",
-        { kind: "object", ctor: Event },
-        {
-          schema: v.object({
-            when: v.date(),
-            pattern: v.instance(RegExp),
-            note: v.string(),
-          }),
-        },
-      );
+    test("nested array schema", () => {
+      const adapter = createValibotAdapter();
+      const matrix = v.array(v.array(v.number()));
+      expect(adapter.runtimeType(matrix)).toBe("array");
+      const row = adapter.arrayElement(matrix)!;
+      expect(adapter.runtimeType(row)).toBe("array");
+      expect(adapter.runtimeType(adapter.arrayElement(row)!)).toBe("number");
+    });
 
-      // TypeName 描述类型 → 得到准确 JS 实例（Schema 只声明 RuntimeType，Registry 解析 TypeName）
-      const e1 = s.parse<Event>(
-        `Event({when:Date("2023-01-15T00:00:00.000Z"),pattern:RegExp("/a/i"),note:"x"})`,
-      );
-      expect(e1).toBeInstanceOf(Event);
-      expect(e1.when).toBeInstanceOf(Date);
-      expect(e1.pattern).toBeInstanceOf(RegExp);
-      expect(e1.pattern).toBeInstanceOf(RegExp);
-      expect((e1.pattern as RegExp).flags).toContain("i");
-      expect(e1.note).toBe("x");
+    test("builtin instanceCtor and Registry ctor map", () => {
+      const adapter = createValibotAdapter();
+      const entries = Object.fromEntries(adapter.objectEntries(BundleSchema)!);
+      expect(adapter.instanceCtor(entries.dec)).toBe(Decimal128);
+      expect(adapter.instanceCtor(entries.buf)).toBe(TBuffer);
+      expect(adapter.instanceCtor(entries.uuid)).toBe(UUID);
+      expect(adapter.instanceCtor(entries.ts)).toBe(Timestamp);
+      expect(adapter.instanceCtor(entries.day)).toBe(DateOnly);
+      expect(adapter.instanceCtor(entries.clock)).toBe(TimeOnly);
+      expect(adapter.instanceCtor(entries.json)).toBe(TJSON);
 
-      // 字面量保真：字符串只是字符串，不用 RFC3339 / "/re/" 冒充 Date/RegExp
-      const e2 = s.parse<Event>(
-        `Event({when:"2023-01-15T00:00:00.000Z",pattern:"/b/g",note:"1"})`,
-      );
-      expect(typeof e2.when).toBe("string");
-      expect(typeof e2.pattern).toBe("string");
-      expect(e2.note).toBe("1"); // "1" 也不是 number
-      expect(e2.when).not.toBeInstanceOf(Date);
-      expect(e2.pattern).not.toBeInstanceOf(RegExp);
+      const s = setupBundle();
+      expect(s.registry.findTypeNameByCtor(Decimal128)).toBe("Decimal128");
+      expect(s.registry.findTypeNameByCtor(TBuffer)).toBe("Buffer");
+      expect(s.registry.findTypeNameByCtor(UUID)).toBe("UUID");
+      expect(s.registry.findTypeNameByCtor(Date)).toBe("Date");
+      expect(s.registry.findTypeNameByCtor(RegExp)).toBe("RegExp");
+      expect(s.registry.findTypeNameByCtor(Timestamp)).toBe("Timestamp");
+      expect(s.registry.findTypeNameByCtor(DateOnly)).toBe("DateOnly");
+      expect(s.registry.findTypeNameByCtor(TimeOnly)).toBe("TimeOnly");
+      expect(s.registry.findTypeNameByCtor(TJSON)).toBe("JSON");
     });
   });
 
-  describe("2.2 — skipped until phase unlock", () => {
-    it22("S10: bigint[] element mapping", () => {
-      // 解锁 2.2 后实现
-      expect(true).toBe(false);
+  describe("ClassMetadata", () => {
+    test("getClassMetadata", () => {
+      const s = createSerializer();
+      registerNode(s);
+      const meta = s.registry.getClassMetadata("Node");
+      expect(meta).toBeDefined();
+      expect(meta!.schema).toBe(NodeSchema);
+      expect((s.registry as any).getSchema).toBeUndefined();
+      expect(s.registry.getClassMetadata("NoSuchType")).toBeUndefined();
     });
 
-    it22("S11: number[][] nested array", () => {
-      expect(true).toBe(false);
+    test("unrecognized schema", () => {
+      const s = createSerializer();
+      s.registry.setSchemaAdapter(createValibotAdapter());
+      s.registry.registerType(
+        "Node",
+        { kind: "object", ctor: Node },
+        { schema: { notAValibotSchema: true } },
+      );
+      expect(() =>
+        s.parse(
+          `Node({id:Int64("1"),name:"a",tags:[],kids:[],meta:{label:"",score:0}})`,
+        ),
+      ).not.toThrow();
     });
 
-    it22("S12: nested object Int64 → bigint", () => {
-      expect(true).toBe(false);
+    test("missing adapter or metadata", () => {
+      const s1 = createSerializer();
+      registerNode(s1, false);
+      expect(s1.registry.getSchemaAdapter()).toBeUndefined();
+      expect(
+        s1.parse<Node>(
+          `Node({id:Int64("1"),name:"a",tags:[],kids:[],meta:{label:"",score:0}})`,
+        ).id,
+      ).toBe(1n);
+
+      const s2 = createSerializer();
+      s2.registry.setSchemaAdapter(createValibotAdapter());
+      s2.registry.registerType("Node", { kind: "object", ctor: Node });
+      expect(
+        s2.parse<Node>(
+          `Node({id:Int64("1"),name:"a",tags:[],kids:[],meta:{label:"",score:0}})`,
+        ).id,
+      ).toBe(1n);
     });
 
-    it22("S13: UInt8…Decimal128 × record-type", () => {
-      expect(true).toBe(false);
+    test("adapter replace and clear", () => {
+      const s = createSerializer();
+      registerNode(s);
+      s.registry.setSchemaAdapter({
+        isSchema: (_v): _v is unknown => false,
+        objectEntries: () => null,
+        arrayElement: () => null,
+        runtimeType: () => "unknown",
+        instanceCtor: () => null,
+      });
+      expect(
+        s.parse(
+          `Node({id:Int64("2"),name:"x",tags:[],kids:[],meta:{label:"",score:0}})`,
+        ),
+      ).toMatchObject({ id: 2n, name: "x" });
+
+      s.registry.setSchemaAdapter(null);
+      expect(s.registry.getSchemaAdapter()).toBeUndefined();
+    });
+  });
+
+  describe("structure walk", () => {
+    function setup() {
+      const s = createSerializer();
+      registerNode(s);
+      return s;
+    }
+
+    test("arrays and nested object", () => {
+      const s = setup();
+      const n = s.parse<Node>(
+        `Node({id:1,name:"n",tags:["a","b"],kids:[[1,2],[3.5]],meta:{label:"hi",score:Int64("9")}})`,
+      );
+      expect(n.tags).toEqual(["a", "b"]);
+      expect(n.kids).toEqual([[1, 2], [3.5]]);
+      expect(typeof n.kids[0][0]).toBe("number");
+      expect(n.meta).toEqual({ label: "hi", score: 9n });
+      expect(typeof n.meta.score).toBe("bigint");
     });
 
-    it22("S14: object-type-property serialize", () => {
-      expect(true).toBe(false);
+    test("bigint leaf and bigint array", () => {
+      const s = setup();
+      expect(
+        s.parse<Node>(
+          `Node({id:Int64("1"),name:"a",tags:[],kids:[],meta:{label:"",score:2}})`,
+        ).id,
+      ).toBe(1n);
+
+      class Wrap {
+        ids!: bigint[];
+        constructor(init?: Partial<Wrap>) {
+          if (init) Object.assign(this, init);
+        }
+      }
+      s.registry.registerType(
+        "Wrap",
+        { kind: "object", ctor: Wrap },
+        { schema: v.object({ ids: v.array(v.bigint()) }) },
+      );
+      const w = s.parse<Wrap>(`Wrap({ids:[Int64("1"),2]})`);
+      expect(w.ids).toEqual([1n, 2n]);
+      expect(s.parse<Wrap>(s.stringify(w)).ids).toEqual([1n, 2n]);
     });
 
-    it22("S15: object-type-property deserialize", () => {
-      expect(true).toBe(false);
+    test("stringify structure", () => {
+      const s = setup();
+      const text = s.stringify(
+        new Node({
+          id: 1n,
+          name: "a",
+          tags: ["t"],
+          kids: [[1, 2]],
+          meta: { label: "L", score: 3n },
+        }),
+      );
+      expect(text).toContain("tags:[");
+      expect(text).toContain("kids:[[");
+      expect(text).toContain("meta:{");
+      const again = s.parse<Node>(text);
+      expect(again.tags).toEqual(["t"]);
+      expect(again.kids).toEqual([[1, 2]]);
+      expect(again.meta.score).toBe(3n);
+    });
+  });
+
+  describe("builtin instances", () => {
+    test("parse entity", () => {
+      const s = setupBundle();
+      const b = s.parse<Bundle>(fullBundleText);
+
+      expect(b).toBeInstanceOf(Bundle);
+      expect(b.bi).toBe(42n);
+      expect(b.num).toBe(7);
+      // Decimal128 在 object-fallback-native 下拆到 Decimal
+      expect(b.dec).toBeInstanceOf(Decimal);
+      expect((b.dec as Decimal).toString()).toBe("3.14159265358979323846");
+      expect(b.buf).toBeInstanceOf(TBuffer);
+      expect(b.buf.type).toBe("base64");
+      expect(b.uuid).toBeInstanceOf(UUID);
+      expect(b.uuid.value).toBe("550e8400-e29b-41d4-a716-446655440000");
+      expect(b.when).toBeInstanceOf(Date);
+      expect(b.when.toISOString()).toBe("2023-01-15T00:00:00.000Z");
+      expect(b.re).toBeInstanceOf(RegExp);
+      expect(b.re.source).toBe("foo+");
+      expect(b.re.flags).toMatch(/g/);
+      expect(b.re.flags).toMatch(/i/);
+      expect(b.ts).toBeInstanceOf(Timestamp);
+      expect(b.ts.time).toBe(1700000000000);
+      expect(b.day).toBeInstanceOf(DateOnly);
+      expect(b.day.toString()).toBe("2024-04-26");
+      expect(b.clock).toBeInstanceOf(TimeOnly);
+      expect(b.json).toBeInstanceOf(TJSON);
+      expect(b.json.toJSONValue()).toEqual({ k: 1 });
+      expect(b.note).toBe("hello");
     });
 
-    it22("S16: contract number receives Int64 boundary", () => {
-      expect(true).toBe(false);
+    test("string literal fidelity", () => {
+      // JSON 风格字符串不得冒充 Date / RegExp / Buffer / Decimal
+      const s = setupBundle();
+      const b = s.parse<Bundle>(
+        [
+          "Bundle({",
+          "bi:1,num:2,",
+          'dec:"3.14",buf:"base64,YQ==",',
+          'uuid:"550e8400-e29b-41d4-a716-446655440000",',
+          'when:"2023-01-15T00:00:00.000Z",re:"/foo/i",',
+          'ts:"1700000000000",day:"2024-04-26",clock:"11:45:14.000",',
+          'json:"{}",note:"1"',
+          "})",
+        ].join(""),
+      );
+      expect(b.bi).toBe(1n);
+      expect(b.num).toBe(2);
+      for (const key of [
+        "dec",
+        "buf",
+        "uuid",
+        "when",
+        "re",
+        "ts",
+        "day",
+        "clock",
+        "json",
+      ] as const) {
+        expect(typeof b[key]).toBe("string");
+      }
+      expect(b.note).toBe("1");
+      expect(b.when).not.toBeInstanceOf(Date);
+      expect(b.re).not.toBeInstanceOf(RegExp);
+      expect(b.dec).not.toBeInstanceOf(Decimal128);
     });
 
-    it22("S17: no metadata / no adapter regression to phase 1", () => {
-      expect(true).toBe(false);
+    test("stringify entity", () => {
+      const s = setupBundle({
+        serializeNumberHandling: "all",
+        deserializeNumberHandling: "all",
+      });
+      const b = new Bundle({
+        bi: 42n,
+        num: 7,
+        dec: new Decimal128("3.14"),
+        buf: new TBuffer("base64,YQ=="),
+        uuid: new UUID("550e8400-e29b-41d4-a716-446655440000"),
+        when: new Date("2023-01-15T00:00:00.000Z"),
+        re: /foo+/gi,
+        ts: new Timestamp(1700000000000),
+        day: new DateOnly(new Date(2024, 3, 26)),
+        clock: new TimeOnly(new Date(1970, 0, 1, 11, 45, 14)),
+        json: new TJSON('{"k":1}'),
+        note: "hello",
+      });
+      const text = s.stringify(b);
+      for (const name of [
+        "Decimal128",
+        "Buffer",
+        "UUID",
+        "Date",
+        "RegExp",
+        "Timestamp",
+        "DateOnly",
+        "TimeOnly",
+        "JSON",
+      ]) {
+        expect(text).toContain(`${name}(`);
+      }
+      const again = s.parse<Bundle>(text);
+      expect(again.buf).toBeInstanceOf(TBuffer);
+      expect(again.uuid).toBeInstanceOf(UUID);
+      expect(again.when).toBeInstanceOf(Date);
+      expect(again.re).toBeInstanceOf(RegExp);
+      expect(again.dec).toBeInstanceOf(Decimal128);
+      expect(again.ts).toBeInstanceOf(Timestamp);
+      expect(again.day).toBeInstanceOf(DateOnly);
+      expect(again.clock).toBeInstanceOf(TimeOnly);
+      expect(again.json).toBeInstanceOf(TJSON);
+    });
+
+    test("standalone TypeInstance round-trip", () => {
+      const s = createSerializer({
+        serializeNumberHandling: "all",
+        deserializeNumberHandling: "all",
+      });
+      const cases: [string, (v: unknown) => void][] = [
+        [
+          'Buffer("hex,0102")',
+          (v) => {
+            expect(v).toBeInstanceOf(TBuffer);
+            expect((v as TBuffer).type).toBe("hex");
+          },
+        ],
+        [
+          'UUID("550e8400-e29b-41d4-a716-446655440000")',
+          (v) => expect(v).toBeInstanceOf(UUID),
+        ],
+        [
+          'Date("2023-01-15T00:00:00.000Z")',
+          (v) => expect(v).toBeInstanceOf(Date),
+        ],
+        ['RegExp("/ab/i")', (v) => expect(v).toBeInstanceOf(RegExp)],
+        [
+          'Timestamp("1000")',
+          (v) => {
+            expect(v).toBeInstanceOf(Timestamp);
+            expect((v as Timestamp).time).toBe(1000);
+          },
+        ],
+        ['DateOnly("2024-04-26")', (v) => expect(v).toBeInstanceOf(DateOnly)],
+        ['TimeOnly("11:45:14.000")', (v) => expect(v).toBeInstanceOf(TimeOnly)],
+        ['JSON("null")', (v) => expect(v).toBeInstanceOf(TJSON)],
+        [
+          'JSONArray("[1,2]")',
+          (v) => {
+            expect(v).toBeInstanceOf(TJSON);
+            expect((v as TJSON).toJSONValue()).toEqual([1, 2]);
+          },
+        ],
+        [
+          'JSONObject("{\\"a\\":1}")',
+          (v) => {
+            expect(v).toBeInstanceOf(TJSON);
+            expect((v as TJSON).toJSONValue()).toEqual({ a: 1 });
+          },
+        ],
+      ];
+      for (const [text, assert] of cases) {
+        const parsed = s.parse(text);
+        assert(parsed);
+        const out = s.stringify(parsed);
+        expect(out.includes("(")).toBe(true);
+        expect(() => s.parse(out)).not.toThrow();
+      }
+    });
+
+    test("Dictionary", () => {
+      const s = createSerializer({ useBuiltinDictionary: true });
+      const m = s.parse(`Dictionary({pairs:[["k",1],["n",Int64("2")]]})`);
+      expect(m).toBeInstanceOf(Map);
+      expect((m as Map<string, unknown>).get("k")).toBe(1);
+      expect((m as Map<string, unknown>).get("n")).toBe(2n);
+      expect(s.stringify(new Map([["a", 1]])).startsWith("Dictionary(")).toBe(
+        true,
+      );
     });
   });
 });

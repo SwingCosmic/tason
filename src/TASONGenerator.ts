@@ -14,18 +14,30 @@ import { mapRuntimeToTypeInstance } from "./schema/mapRuntimeToTypeInstance";
 import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
 import type { RuntimeType } from "./schema/RuntimeType";
 
+/**
+ * 序列化 Generator。
+ * ObjectType 成员上的 number Handling 对齐 C# `ValueScope` / `ObjectTypeProperty`：
+ * 仅在 ObjectTypeInstance 写出路径内 `object-type-property` ≈ all。
+ * 有 schema 时结构 walk 对齐 C# 元数据驱动的属性写出。
+ */
 export class TASONGenerator {
   private options: Required<TASONSerializerOptions>;
   private registry: TASONTypeRegistry;
+  private indentLevel = 0;
+  /** ObjectTypeInstance 嵌套深度；>0 时 OTP 序列化按 all */
+  private objectTypeDepth = 0;
+
   constructor(registry: TASONTypeRegistry, options: Required<TASONSerializerOptions>) {
     this.registry = registry;
     this.options = options;
   }
 
-  private indentLevel = 0;
-
   public generate(value: unknown): string {
     return this.Value(value)!;
+  }
+
+  private handlingCtx() {
+    return { inObjectType: this.objectTypeDepth > 0 };
   }
 
   Value(value: unknown, scope: "root" | "object-value" = "root"): string | undefined {
@@ -97,6 +109,7 @@ export class TASONGenerator {
   BigIntValue(value: bigint) {
     const effective = resolveSerializeNumberHandling(
       this.options.serializeNumberHandling,
+      this.handlingCtx(),
     );
     if (effective === "none") {
       // 强制字面量，含超大整数
@@ -175,6 +188,58 @@ export class TASONGenerator {
     }
   }
 
+  /**
+   * 带 element schema 的数组写出（C# TypedArray 对称：每元素按期望类型）。
+   * 元素 kind 只解析一次；叶子数组热路径只做 mapRuntimeToTypeInstance。
+   */
+  ArrayValueWithSchema(
+    value: unknown[],
+    elementSchema: unknown,
+    adapter: RuntimeSchemaAdapter,
+  ): string {
+    if (value.length === 0) {
+      return "[]";
+    }
+
+    const elemKind = adapter.runtimeType(elementSchema);
+    const leaf = this.isLeafRuntimeType(elemKind);
+
+    let arr: string[] = [];
+    this.indentLevel++;
+    {
+      this.checkDepth();
+      if (leaf) {
+        arr = value.map(
+          (v) => this.indent() + this.emitMappedField(elemKind, v),
+        );
+      } else {
+        arr = value.map(
+          (v) =>
+            this.indent() +
+            this.emitValueWithSchema(v, elementSchema, adapter, elemKind),
+        );
+      }
+    }
+    this.indentLevel--;
+
+    if (this.options.indent === false) {
+      return `[${arr.join(",")}]`;
+    } else {
+      return `[\n${arr.join(",\n")}\n${this.indent()}]`;
+    }
+  }
+
+  private isLeafRuntimeType(kind: RuntimeType): boolean {
+    return (
+      kind === "bigint" ||
+      kind === "number" ||
+      kind === "decimal" ||
+      kind === "string" ||
+      kind === "boolean" ||
+      kind === "instance"
+    );
+  }
+
   MaybeObjectValue(value: object) {
     // 处理弱引用
     if (value instanceof WeakMap || value instanceof WeakSet || (typeof WeakRef === "function" && value instanceof WeakRef)) {
@@ -208,6 +273,7 @@ export class TASONGenerator {
     if (isNumberTypeName(type.name)) {
       const effective = resolveSerializeNumberHandling(
         this.options.serializeNumberHandling,
+        this.handlingCtx(),
       );
       if (effective === "none") {
         const literal = trySerializeNumberAsLiteral(value);
@@ -301,7 +367,7 @@ export class TASONGenerator {
   }
 
   /**
-   * 带 schema 的 object 写出：叶子按 RuntimeType + serialize Handling 映射（2.1）。
+   * 带 schema 的 object 写出：叶子 + 数组/嵌套 object 递归（2.2）。
    */
   ObjectValueWithSchema(
     obj: Record<string, any>,
@@ -316,12 +382,15 @@ export class TASONGenerator {
       return this.ObjectValue(obj);
     }
 
-    const fieldKinds = new Map<string, RuntimeType>();
+    type FieldInfo = { kind: RuntimeType; schema: unknown };
+    const fieldMap = new Map<string, FieldInfo>();
     for (const [key, fieldSchema] of entries) {
-      fieldKinds.set(key, adapter.runtimeType(fieldSchema));
+      fieldMap.set(key, {
+        kind: adapter.runtimeType(fieldSchema),
+        schema: fieldSchema,
+      });
     }
 
-    // 以实例字段为准；schema 提供期望 kind
     const pairs: string[] = [];
     this.indentLevel++;
     {
@@ -335,16 +404,11 @@ export class TASONGenerator {
         }
 
         const keyStr = this.Key(key);
-        const kind = fieldKinds.get(key);
+        const field = fieldMap.get(key);
         let valueStr: string | undefined;
 
-        if (
-          kind != null &&
-          kind !== "unknown" &&
-          kind !== "object" &&
-          kind !== "array"
-        ) {
-          valueStr = this.emitMappedField(kind, value);
+        if (field) {
+          valueStr = this.emitValueWithSchema(value, field.schema, adapter, field.kind);
         } else {
           valueStr = this.Value(value, "object-value");
         }
@@ -369,11 +433,57 @@ export class TASONGenerator {
     }
   }
 
+  /**
+   * 按字段/元素 schema 写出单个值。
+   */
+  private emitValueWithSchema(
+    value: unknown,
+    schema: unknown,
+    adapter: RuntimeSchemaAdapter,
+    kindHint?: RuntimeType,
+  ): string {
+    const kind = kindHint ?? adapter.runtimeType(schema);
+
+    if (kind === "array") {
+      if (!Array.isArray(value)) {
+        return this.Value(value, "object-value")!;
+      }
+      const elementSchema = adapter.arrayElement(schema);
+      if (elementSchema == null) {
+        return this.ArrayValue(value);
+      }
+      return this.ArrayValueWithSchema(value, elementSchema, adapter);
+    }
+
+    if (kind === "object") {
+      // 已注册类型实例 → 走 TypeInstance（可能自带 metadata）
+      if (value != null && typeof value === "object" && !Array.isArray(value)) {
+        const type = this.registry.tryGetTypeInfo(value);
+        if (type) {
+          return this.TypeInstanceValue(value, type);
+        }
+        return this.ObjectValueWithSchema(
+          value as Record<string, any>,
+          schema,
+          adapter,
+        );
+      }
+      return this.Value(value, "object-value")!;
+    }
+
+    if (kind === "unknown") {
+      return this.Value(value, "object-value")!;
+    }
+
+    return this.emitMappedField(kind, value);
+  }
+
   private emitMappedField(kind: RuntimeType, value: unknown): string {
     const mapped = mapRuntimeToTypeInstance(
       kind,
       value,
       this.options.serializeNumberHandling,
+      this.handlingCtx(),
     );
     if (mapped.form === "literal") {
       return mapped.text;
@@ -397,23 +507,28 @@ export class TASONGenerator {
     if (type.kind === "scalar") {
       argStr = this.StringValue(arg as string);
     } else {
-      // 2.1：ObjectType + metadata + adapter → 叶子按契约写出
-      const metadata = this.registry.getClassMetadata(type.name);
-      const adapter = this.registry.getSchemaAdapter();
-      if (
-        metadata &&
-        adapter &&
-        adapter.isSchema(metadata.schema) &&
-        typeof arg === "object" &&
-        arg !== null
-      ) {
-        argStr = this.ObjectValueWithSchema(
-          arg as Record<string, any>,
-          metadata.schema,
-          adapter,
-        );
-      } else {
-        argStr = this.ObjectValue(arg as object);
+      // ObjectType 成员上下文（C# ObjectTypeProperty / ValueScope.ObjectValue）
+      this.objectTypeDepth++;
+      try {
+        const metadata = this.registry.getClassMetadata(type.name);
+        const adapter = this.registry.getSchemaAdapter();
+        if (
+          metadata &&
+          adapter &&
+          adapter.isSchema(metadata.schema) &&
+          typeof arg === "object" &&
+          arg !== null
+        ) {
+          argStr = this.ObjectValueWithSchema(
+            arg as Record<string, any>,
+            metadata.schema,
+            adapter,
+          );
+        } else {
+          argStr = this.ObjectValue(arg as object);
+        }
+      } finally {
+        this.objectTypeDepth--;
       }
     }
     return `${type.name}(${argStr})`;

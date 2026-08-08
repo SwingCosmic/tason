@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import type { RuntimeType } from "./RuntimeType";
 import {
   isNumberWrapper,
+  isSafeIntegerBigInt,
   unwrapNumberInstance,
 } from "@/types/NumberHandling";
 import type { DeserializeNumberHandling } from "@/TASONSerializerOptions";
@@ -44,7 +45,8 @@ export function mapTypeInstanceToRuntime(
     return value;
   }
 
-  // record-type / object-type-property（有契约时按 kind 收值）
+  // object-fallback-*：有叶子契约时一律按 kind 收到 RuntimeType
+  // （object-fallback-all 的「OT 内 ≈ all」只作用于无契约路径，不能压过 ClassMetadata）
   switch (runtimeType) {
     case "bigint":
       return toBigInt(value);
@@ -120,6 +122,7 @@ function toBigInt(value: unknown): bigint {
 
 /**
  * 仅从「数字类」值收敛到 number。**不**接受字符串字面量。
+ * bigint / Int64：仅安全整数可收；超范围抛错（不静默截断）。
  */
 function toNumber(value: unknown): number {
   if (typeof value === "number") {
@@ -131,14 +134,14 @@ function toNumber(value: unknown): number {
       return inner;
     }
     if (typeof inner === "bigint") {
-      return Number(inner);
+      return bigintToSafeNumber(inner);
     }
     if (inner instanceof Decimal) {
       return inner.toNumber();
     }
   }
   if (typeof value === "bigint") {
-    return Number(value);
+    return bigintToSafeNumber(value);
   }
   if (value instanceof Decimal) {
     return value.toNumber();
@@ -146,6 +149,15 @@ function toNumber(value: unknown): number {
   throw new Error(
     `Cannot map value to number (string literals are not numbers): ${String(value)}`,
   );
+}
+
+function bigintToSafeNumber(bi: bigint): number {
+  if (!isSafeIntegerBigInt(bi)) {
+    throw new Error(
+      `Cannot map bigint ${bi.toString(10)} to number: outside Number safe integer range`,
+    );
+  }
+  return Number(bi);
 }
 
 /**

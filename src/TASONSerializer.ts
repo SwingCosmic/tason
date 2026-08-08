@@ -41,7 +41,7 @@ export default class TASONSerializer {
     options.indent ??= false;
     options.maxDepth ??= 64;
     options.serializeNumberHandling ??= "unsafe-only";
-    options.deserializeNumberHandling ??= "record-type";
+    options.deserializeNumberHandling ??= "object-fallback-native";
 
     options.registry ||= new TASONTypeRegistry(options);
 

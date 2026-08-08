@@ -57,26 +57,26 @@ type SerializeNumberHandling =
   | "unsafe-only" | "all" | "object-type-property" | "none";  // 默认 unsafe-only
 
 type DeserializeNumberHandling =
-  | "native" | "all" | "record-type" | "object-type-property"; // 默认 record-type
+  | "native" | "all" | "object-fallback-native" | "object-fallback-all"; // 默认 object-fallback-native
 ```
 
 | 序列化 | 行为 |
 | --- | --- |
 | `unsafe-only`（默认） | **仅当数值超出安全范围时才装箱**（TypeName）；安全范围内尽量裸字面量 |
 | `all` | 可识别数值实现尽量装箱 |
-| `object-type-property` | 对 **ObjectTypeInstance** 相当于 `all`；其它相当于 `unsafe-only` |
+| `object-type-property` | 对 **ObjectTypeInstance** 相当于 `all`；其它相当于 `unsafe-only`（与 .NET 同名） |
 | `none` | **强制**所有数值为裸字面量（含超大 bigint / 超精度 Decimal，永不 TypeName） |
 
 | 反序列化 | 行为 |
 | --- | --- |
-| `native` | **全拆箱**：原生 `number` / `bigint`；`Decimal128` → `Decimal` |
-| `all` | 保留包装类（旧版默认逻辑） |
-| `record-type`（默认） | 尽可能**记录**数值 TypeName（主要针对数组与 ObjectTypeInstance），便于再序列化还原；收值路径上再按 `native` 拆箱。有 Schema 时按期望 RuntimeType 收值 |
-| `object-type-property` | 对 **ObjectTypeInstance** 相当于 `all`；其它相当于 `native` |
+| `native` | **全拆箱**：原生 `number` / `bigint`；`Decimal128` → `Decimal`；**忽略**契约 |
+| `all` | 保留包装类；**忽略**契约 |
+| `object-fallback-native`（默认） | ObjectType 有字段契约 → RuntimeType；否则拆箱（native） |
+| `object-fallback-all` | ObjectType 有字段契约 → RuntimeType；否则 OT 内 ≈ `all`、外 ≈ `native` |
 
 拆箱约定：小整数/浮点 → `number`，Int64 → `bigint`，Decimal128 → `Decimal`。
 
-> 阶段 1（无 Schema / 无 ObjectType 字段上下文）时：`record-type` 与 `object-type-property` 在反序列化上**降级为 `native`**；序列化 `object-type-property` **降级为 `unsafe-only`**。完整语义见阶段 2。
+> 阶段 1（无 Schema / 无 ObjectType 字段上下文）时：`object-fallback-*` 在反序列化上**降级为 `native`**；序列化 `object-type-property` **降级为 `unsafe-only`**。完整语义见阶段 2。
 ---
 
 ## 4. 实体元数据：Schema（现成库），不是 TypeName 表
@@ -150,12 +150,13 @@ Schema 只回答「内存里是什么」；「文本里叫什么 TypeName」由 
 **字面量保真：** JSON 风格字面量本身已是准确类型——字符串**只**是字符串，**不得**把 `"1"`、RFC3339、`"/a/"` 等字符串字面量解释成 number/Date/RegExp（那是 JSON 无类型时的妥协，TASON 不用）。  
 `Date` / `RegExp` 等只能来自 **TypeInstance**（或已是该 ctor 的实例）。
 
-### 4.4 `record-type` 在本模型下
+### 4.4 `object-fallback-native` 在本模型下
 
-- 目标：反序列化时尽量**记下**数值 TypeInstance 的 TypeName（尤其数组元素、ObjectType 字段），以便 `stringify` 时写回；应用层取值仍走 `native` 语义（拆箱为 number/bigint/Decimal）  
-- 有 Schema 时：按 **期望 RuntimeType**收值（`Int64("1")` + bigint → `1n`；换路径的 TypeInstance 亦可收敛）  
+- **命名含义**：优先使用 schema 契约解释字段（有则按 RuntimeType 收值），无契约则退回 native 拆箱——**不是**把 TypeName 记入侧信道  
+- 应用层取值：拆箱后的 number / bigint / Decimal（或契约指定的 RuntimeType）  
+- 有 Schema 时：按 **期望 RuntimeType** 收值（`Int64("1")` + bigint → `1n`；换路径的 TypeInstance 亦可收敛）  
 - 数组/嵌套按 Schema 遍历，保证 `bigint[]` 元素真是 bigint  
-- 不把观测结果写成自研 TypeName 表；契约已在 Schema 里  
+- 再序列化靠 ser 侧 Handling + schema 期望 kind，而非 parse 时记住的 TypeName  
 
 ### 4.5 库与核心边界
 
@@ -211,7 +212,7 @@ registerDuckType("Int64", bsonLongInfo);
 ```
 parse / parseAs(User)
   → deserializeNumberHandling
-  → 有 Schema：按期望 RuntimeType 收值（record-type）
+  → 有 Schema：按期望 RuntimeType 收值（object-fallback-native）
   → 映射：TypeInstance → bigint/number/…
 
 stringify(user)

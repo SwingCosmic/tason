@@ -15,15 +15,15 @@ JS 选项字符串一律 **kebab-case**。
 
 ```
 Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3
- 选项+值级数值   目录+Valibot+叶子    契约×数值全量      鸭子/多态
-   [done]          [done]            [next]
+ 选项+值级数值   目录+Valibot+叶子    结构递归+OTP       鸭子/多态
+   [done]          [done]            [done]
 ```
 
 | 阶段 | 名称 | 状态 | 分册 |
 | --- | --- | --- | --- |
 | **1** | 数值双选项（无字段上下文） | **已完成** | [phase-1-number-handling.md](./phase-1-number-handling.md) |
 | **2.1** | schema 定义与简单应用 | **已完成** | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) |
-| **2.2** | 全数值类型 × 契约 | **下一步** | 同上 |
+| **2.2** | 结构递归 + Handling 上下文 + 全数值契约 | **已完成** | 同上 |
 | **3** | 鸭子类型与多态 | 待办 | [phase-3-duck-types.md](./phase-3-duck-types.md) |
 
 ---
@@ -44,8 +44,8 @@ Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3
 
 ```ts
 // 数值选项（阶段 1 ✓）
-serializeNumberHandling?: "unsafe-only" | "all" | "object-type-property" | "none"
-deserializeNumberHandling?: "native" | "all" | "record-type" | "object-type-property"
+serializeNumberHandling?: "unsafe-only" | "all" | "object-type-property" | "none"  // ser 与 .NET 同名
+deserializeNumberHandling?: "native" | "all" | "object-fallback-native" | "object-fallback-all"
 
 // Class 元数据 + 契约（阶段 2）
 registerType(name, typeInfo, metadata?: TasonClassMetadata): void
@@ -61,9 +61,9 @@ parseAs(expected, text): T
 
 | Handling（摘要） | 序列化 | 反序列化 |
 | --- | --- | --- |
-| 默认 | `unsafe-only`：超安全范围才装箱 | `record-type`：尽量记类型；有契约按 kind 收值 |
-| 全拆箱 / 全保留 | — | `native` / `all` |
-| ObjectType 内 | `object-type-property` ≈ all | 同左；阶段 1/2.1 无上下文时降级 |
+| 默认 | `unsafe-only`：超安全范围才装箱 | `object-fallback-native`：有契约收 RuntimeType，否则拆箱 |
+| 全拆箱 / 全保留 | — | `native` / `all`（忽略契约） |
+| ObjectType 内（无契约 fallback） | ser：`object-type-property` ≈ all | de：`object-fallback-all` ≈ all |
 | 强制裸写 | `none`（仅 serialize） | 无 `none` |
 
 交叉映射默认路径：`bigint`↔Int64/BigInt（及字面量，随 Handling）；`number`→裸字面量（**不**默认 Int32）；decimal→Decimal128。其它路径用 override/brand/`all`/鸭子。两套类型关系见 [README](./README.md#概念对照读本文档前)。
@@ -94,7 +94,9 @@ parseAs(expected, text): T
 | 选项 / 值级数值 | `TASONSerializerOptions`、`NumberHandling`、Visitor/Generator | 1 ✓ |
 | `TASONTypeInfo` 顶层 | `src/TASONTypeInfo.ts` | 2.1 |
 | 元数据 | `src/metadata/*` | 2.1 |
-| 契约 adapter / 映射 | `src/schema/*` | 2.1 → 2.2 |
+| 契约 adapter / 映射 | `src/schema/*` | 2.1 叶子 ✓ → 2.2 递归 + 边界 |
+| Handling 上下文 | `NumberHandling.resolve*`、Visitor/Generator | 2.2（OTP / OT 内） |
+| 结构 walk | Visitor/Generator `*WithSchema` | 2.2（array + 嵌套 object） |
 | 鸭子 / parseAs | Registry、Serializer | 3 |
 | 测试 | `number-handling*.test.ts` ✓；**新建** `runtime-schema*.test.ts`；`duck*.test.ts` | 各阶段 |
 
@@ -120,7 +122,7 @@ src/
 | 存储 | **R1** Registry entry 旁路（不用全局 WeakMap） |
 | 无法识别 Schema | 忽略契约，不抛 |
 | 阶段 2 测试 | 新开文件覆盖 2.1+2.2；未实现 skip/todo 默认通过 |
-| 默认 Number Handling | serialize `unsafe-only`；deserialize `record-type` |
+| 默认 Number Handling | serialize `unsafe-only`；deserialize `object-fallback-native` |
 | `none` / `native` | `none` 仅序列化；全拆箱名 `native` |
 | number→Int32 | 默认不恢复 |
 | 选项命名 | kebab-case |
@@ -133,20 +135,20 @@ src/
 | --- | --- | --- | --- |
 | 1 | M | — | **done** |
 | 2.1 | M–L | 阶段 1 | **done** |
-| 2.2 | L | 2.1 | **next** |
-| 3 | S–M | 2.2（D4 依赖 schema） | pending |
+| 2.2 | L | 2.1 | **done** |
+| 3 | S–M | 2.2（D4 依赖 schema） | **next** |
 
 - PR1 = 阶段 1 ✓  
-- PR2 = 2.1 · PR3 = 2.2 · PR4 = 3  
+- PR2 = 2.1 ✓ · PR3 = 2.2 ✓ · PR4 = 3  
 
-2.1 建议提交切分见 [阶段 2 分册](./phase-2-class-metadata-schema.md)。
+2.1 / 2.2 已完成；细节与落点见 [阶段 2 分册](./phase-2-class-metadata-schema.md)。
 
 ---
 
 ## 总 DoD
 
 - [x] [阶段 1](./phase-1-number-handling.md)  
-- [x] [阶段 2.1](./phase-2-class-metadata-schema.md) · [ ] 阶段 2.2  
+- [x] [阶段 2.1](./phase-2-class-metadata-schema.md) · [x] 阶段 2.2  
 - [ ] [阶段 3](./phase-3-duck-types.md)  
 - [ ] 测试绿；不以自研 TASON 类型树为主 API  
 - [ ] 与 [runtime-type-design.md](./runtime-type-design.md) 一致  
@@ -161,7 +163,7 @@ src/
 | [runtime-type-design.md](./runtime-type-design.md) | 设计 |
 | **[implementation-plan.md](./implementation-plan.md)** | **本入口（进度 + 决策摘要）** |
 | [phase-1-number-handling.md](./phase-1-number-handling.md) | 阶段 1（已完成归档） |
-| [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2（2.1 done · 2.2 next） |
+| [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2（2.1 · 2.2 done） |
 | [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 |
 | [type-system.md](../../type-system.md) | 规范 |
 | `E:\dev\VS2022\tason-net` | C# 参考实现 |

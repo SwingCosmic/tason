@@ -29,9 +29,21 @@ import { mapTypeInstanceToRuntime } from "./schema/mapTypeInstanceToRuntime";
 import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
 import type { RuntimeType } from "./schema/RuntimeType";
 
+/**
+ * 反序列化 Visitor。
+ * 有 schema 时的结构 walk 对齐 C# `TasonVisitor_Typed`：
+ * - `FillObjectMembers` → {@link ObjectWithSchema} / {@link mapObjectBagWithSchema}
+ * - `TypedArray` / `TypedValueContext` 元素期望类型 → {@link mapValueWithSchema}
+ */
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
   private options: Required<TASONSerializerOptions>;
+  /**
+   * ObjectTypeInstance 嵌套深度。
+   * >0 且 handling 为 object-fallback-all、无字段契约时，保留数值包装。
+   */
+  private objectTypeDepth = 0;
+
   constructor(
     registry: TASONTypeRegistry,
     options: Required<TASONSerializerOptions>
@@ -90,8 +102,8 @@ export class TASONVisitor {
   }
 
   /**
-   * 带 schema 的 object 解析：按字段 RuntimeType 收敛叶子（2.1）。
-   * 无法识别 schema 时回退普通 Object。
+   * 带 schema 的 object 解析：先无类型解析 bag，再按字段契约递归映射
+   *（C# `FillObjectMembers` + `TypedValueContext`）。
    */
   ObjectWithSchema(
     ctx: ObjectContext,
@@ -101,13 +113,25 @@ export class TASONVisitor {
     if (!adapter.isSchema(schema)) {
       return this.Object(ctx);
     }
+    const bag = this.Object(ctx);
+    return this.mapObjectBagWithSchema(bag, schema, adapter);
+  }
 
+  /**
+   * 对已解析的 plain object bag 按 schema entries 递归收值。
+   */
+  private mapObjectBagWithSchema(
+    bag: Record<string, any>,
+    schema: unknown,
+    adapter: RuntimeSchemaAdapter,
+  ): Record<string, any> {
     const entries = adapter.objectEntries(schema);
     if (!entries) {
-      return this.Object(ctx);
+      return bag;
     }
 
     type FieldContract = {
+      schema: unknown;
       kind: RuntimeType;
       ctor: (abstract new (...args: any[]) => any) | null;
     };
@@ -115,6 +139,7 @@ export class TASONVisitor {
     for (const [key, fieldSchema] of entries) {
       const kind = adapter.runtimeType(fieldSchema);
       fieldContracts.set(key, {
+        schema: fieldSchema,
         kind,
         ctor: kind === "instance" ? adapter.instanceCtor(fieldSchema) : null,
       });
@@ -123,28 +148,120 @@ export class TASONVisitor {
     const obj: Record<string, any> = this.options.nullPrototypeObject
       ? Object.create(null)
       : {};
-    const pairs = ctx.pair_list().map(p => this.Pair(p));
-    if (!this.options.allowDuplicatedKeys) {
-      const keys = pairs.map(p => p.key);
-      if (keys.length !== new Set(keys).size) {
-        throw new Error(`Duplicate keys in object`);
-      }
-    }
 
-    const handling = this.options.deserializeNumberHandling;
-    for (const pair of pairs) {
-      const contract = fieldContracts.get(pair.key);
-      const kind = contract?.kind;
-      if (kind != null && kind !== "unknown" && kind !== "object" && kind !== "array") {
-        // 字面量保真：不把 string 冒充 Date/RegExp/数字；TypeInstance 已在 Pair 中构造成实例
-        obj[pair.key] = mapTypeInstanceToRuntime(kind, pair.value, handling, {
-          ctor: contract?.ctor ?? undefined,
-        });
-      } else {
-        obj[pair.key] = pair.value;
+    for (const [key, value] of Object.entries(bag)) {
+      const contract = fieldContracts.get(key);
+      if (!contract) {
+        obj[key] = value;
+        continue;
       }
+      obj[key] = this.mapValueWithSchema(
+        value,
+        contract.schema,
+        adapter,
+        contract,
+      );
     }
     return obj;
+  }
+
+  /**
+   * 单值按 schema 递归映射（C# `TypedValueContext`）。
+   * array → 元素 schema 只内省一次，大数组热路径只做数值转换；
+   * 嵌套 plain object → entries；叶子 → mapTypeInstanceToRuntime。
+   */
+  private mapValueWithSchema(
+    value: unknown,
+    schema: unknown,
+    adapter: RuntimeSchemaAdapter,
+    precomputed?: {
+      kind: RuntimeType;
+      ctor: (abstract new (...args: any[]) => any) | null;
+    },
+  ): unknown {
+    const kind = precomputed?.kind ?? adapter.runtimeType(schema);
+    const ctor =
+      precomputed?.ctor ??
+      (kind === "instance" ? adapter.instanceCtor(schema) : null);
+    const handling = this.options.deserializeNumberHandling;
+
+    if (kind === "array") {
+      if (!Array.isArray(value)) {
+        return value;
+      }
+      const elementSchema = adapter.arrayElement(schema);
+      if (elementSchema == null) {
+        return value;
+      }
+      // 元素契约只解析一次，避免 Int32[] 等大数组上 O(n) 次 runtimeType/unwrap
+      const elemKind = adapter.runtimeType(elementSchema);
+      const elemCtor =
+        elemKind === "instance" ? adapter.instanceCtor(elementSchema) : null;
+
+      if (this.isLeafRuntimeType(elemKind)) {
+        // 热路径：同质叶子数组，循环内只做 RuntimeType 收敛
+        return value.map((el) =>
+          mapTypeInstanceToRuntime(elemKind, el, handling, {
+            ctor: elemCtor ?? undefined,
+          }),
+        );
+      }
+
+      const elemContract = { kind: elemKind, ctor: elemCtor };
+      return value.map((el) =>
+        this.mapValueWithSchema(el, elementSchema, adapter, elemContract),
+      );
+    }
+
+    if (kind === "object") {
+      // 已是注册类实例（嵌套 ObjectTypeInstance 已在 TypeInstance 路径处理）→ 透传
+      if (
+        value != null &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        !this.isPlainObject(value)
+      ) {
+        return value;
+      }
+      if (
+        value == null ||
+        typeof value !== "object" ||
+        Array.isArray(value)
+      ) {
+        return value;
+      }
+      return this.mapObjectBagWithSchema(
+        value as Record<string, any>,
+        schema,
+        adapter,
+      );
+    }
+
+    if (kind === "unknown") {
+      return value;
+    }
+
+    return mapTypeInstanceToRuntime(kind, value, handling, {
+      ctor: ctor ?? undefined,
+    });
+  }
+
+  /** 可直接 mapTypeInstanceToRuntime 的叶子 kind（非结构） */
+  private isLeafRuntimeType(kind: RuntimeType): boolean {
+    return (
+      kind === "bigint" ||
+      kind === "number" ||
+      kind === "decimal" ||
+      kind === "string" ||
+      kind === "boolean" ||
+      kind === "instance"
+    );
+  }
+
+  /** null-prototype 或 Object.prototype 的 bag 视为 plain object */
+  private isPlainObject(value: object): boolean {
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
   }
 
   Pair(ctx: PairContext) {
@@ -221,33 +338,52 @@ export class TASONVisitor {
     const typeInfo = this.registry.getDefaultType(typeName);
     if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
 
-    // 2.1：record-type + adapter + metadata → 叶子按契约收值
-    // native 忽略契约；all 保留包装（不走契约转换）；object-type-property 仍降级
-    if (this.shouldApplySchemaContract()) {
-      const metadata = this.registry.getClassMetadata(typeName);
-      const adapter = this.registry.getSchemaAdapter();
-      if (metadata && adapter && adapter.isSchema(metadata.schema)) {
-        const bag = this.ObjectWithSchema(ctx.object(), metadata.schema, adapter);
-        return this.registry.createInstance(typeInfo, bag);
+    // 进入 ObjectType 成员上下文（C# ObjectType 属性路径）
+    // 仅影响「无字段契约」时 OTP 是否保留数值包装；有 schema 叶子契约时由 map* 收到 RuntimeType
+    this.objectTypeDepth++;
+    try {
+      // 有 schema 时：ClassMetadata 优先于 OTP 的「≈ all」
+      // （OTP 的保留包装只覆盖无契约字段；有契约必须落到 bigint/number/… 才能给应用用）
+      // native / all：明确忽略契约
+      if (this.shouldApplySchemaContract()) {
+        const metadata = this.registry.getClassMetadata(typeName);
+        const adapter = this.registry.getSchemaAdapter();
+        if (metadata && adapter && adapter.isSchema(metadata.schema)) {
+          const bag = this.ObjectWithSchema(
+            ctx.object(),
+            metadata.schema,
+            adapter,
+          );
+          return this.registry.createInstance(typeInfo, bag);
+        }
       }
-    }
 
-    const obj = this.Object(ctx.object());
-    return this.createTypeInstance(typeName, obj);
+      const obj = this.Object(ctx.object());
+      return this.createTypeInstance(typeName, obj);
+    } finally {
+      this.objectTypeDepth--;
+    }
   }
 
-  /** 阶段 2.1：仅 record-type 在有契约时应用叶子映射 */
+  /**
+   * 是否走 schema 契约收值。
+   * - object-fallback-native / object-fallback-all：有契约 → RuntimeType
+   * - native / all：不走契约
+   */
   private shouldApplySchemaContract(): boolean {
     const h = this.options.deserializeNumberHandling;
-    // native：全拆箱忽略契约；all：保留包装；object-type-property：2.1 仍降级
-    return h === "record-type";
+    return h === "object-fallback-native" || h === "object-fallback-all";
   }
 
   private createTypeInstance(typeName: string, value: any) {
     const typeInfo = this.registry.getDefaultType(typeName);
     if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
     const instance = this.registry.createInstance(typeInfo, value);
-    return unwrapNumberInstance(instance, this.options.deserializeNumberHandling);
+    return unwrapNumberInstance(
+      instance,
+      this.options.deserializeNumberHandling,
+      { inObjectType: this.objectTypeDepth > 0 },
+    );
   }
 
   private getTextValue(ctx: TerminalNode) {

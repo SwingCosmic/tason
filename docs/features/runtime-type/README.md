@@ -13,7 +13,7 @@
 | **TASON类型名称 TypeName** | Registry 注册名；文本中 TypeInstance 的名字 | `Int64`、`RegExp`、`User` |
 | **TASON类型实例 TypeInstance** | TASON 中带类型名的值语法，分为 Scalar / Object 两种 | `Int64("1")`、`RegExp("/a/")`、`User({…})` |
 | **字面量** | 无类型名前缀的 JSON 式写法 | `1`、`"a"`、`{ x: 1, y: 2 }` |
-| **数值处理 Number Handling** | 何时用 TypeName 装箱、何时拆成原生值 | `unsafe-only`、`record-type`、`native` |
+| **数值处理 Number Handling** | 何时用 TypeName 装箱、何时拆成原生值 | ser：`unsafe-only`…；de：`object-fallback-native` / `native`… |
 | **映射** | RuntimeType ↔ TypeInstance 或字面量（**交叉关系**；**Registry 负责**） | `bigint` ↔ `Int64`/`BigInt`；`instanceof RegExp` ↔ TypeName `RegExp` |
 
 **职责边界（重要）：**
@@ -55,7 +55,7 @@ Date、RegExp、UUID、Buffer 等 JSON 表达不了的类型，必须写 **TypeI
 | **[implementation-plan.md](./implementation-plan.md)** | **进度入口**（总览、决策、DoD） |
 | [runtime-type-design.md](./runtime-type-design.md) | 设计 |
 | [phase-1-number-handling.md](./phase-1-number-handling.md) | 阶段 1 · 数值 Handling（**已完成**） |
-| [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2 · Class 元数据 + schema（**2.1 done · 2.2 next**） |
+| [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2 · Class 元数据 + schema（**2.1 · 2.2 done**） |
 | [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 · 鸭子 / 多态（待办） |
 
 规范总览：[type-system.md](../../type-system.md) · C# 参考：`E:\dev\VS2022\tason-net`

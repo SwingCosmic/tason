@@ -3,15 +3,16 @@ import TASON from "@/index";
 
 describe("Symbol edge cases", () => {
   describe("allowUnsafeTypes gate", () => {
-    test("default: Symbol TypeInstance parse throws (not registered)", () => {
+    test("default parse", () => {
+      // 未注册 Symbol TypeInstance
       expect(() => TASON.parse(`Symbol("x")`)).toThrow();
     });
 
-    test("default: stringify symbol value throws", () => {
+    test("default stringify", () => {
       expect(() => TASON.stringify(Symbol.for("x"))).toThrow(/symbol/i);
     });
 
-    test("allowUnsafeTypes: parse/stringify Symbol.for and well-known", () => {
+    test("allowUnsafeTypes parse and stringify", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
@@ -23,8 +24,8 @@ describe("Symbol edge cases", () => {
     });
   });
 
-  describe("as object property VALUE", () => {
-    test("string key + Symbol value round-trip", () => {
+  describe("as property value", () => {
+    test("object string key", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
@@ -36,7 +37,7 @@ describe("Symbol edge cases", () => {
       expect(obj.t).toBe(Symbol.toStringTag);
     });
 
-    test("array of symbols", () => {
+    test("array element", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
@@ -47,8 +48,9 @@ describe("Symbol edge cases", () => {
     });
   });
 
-  describe("as object property KEY (plain object)", () => {
-    test("allowUnsafeTypes without Dictionary: symbol keys ignored (cannot express)", () => {
+  describe("as property key on plain object", () => {
+    test("allowUnsafeTypes without Dictionary", () => {
+      // 对象语法无法表达 Symbol 键 → 忽略
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         useBuiltinDictionary: false,
@@ -56,11 +58,11 @@ describe("Symbol edge cases", () => {
       });
       const o: any = { a: 1 };
       o[Symbol.for("hidden")] = 2;
-      // 会尝试读 Symbol 键，但无 Dictionary 无法表达 → 忽略
       expect(s.stringify(o)).toBe("{a:1}");
     });
 
-    test("allowUnsafeTypes + useBuiltinDictionary: plain object symbol keys → Dictionary", () => {
+    test("allowUnsafeTypes with Dictionary", () => {
+      // 含 Symbol 键时提升为 Dictionary
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         useBuiltinDictionary: true,
@@ -78,14 +80,16 @@ describe("Symbol edge cases", () => {
       expect(back.get(Symbol.for("hidden"))).toBe(2);
     });
 
-    test("without allowUnsafeTypes: symbol keys not in view (Object.entries), ignored", () => {
+    test("without allowUnsafeTypes", () => {
+      // Object.entries 看不到 Symbol 键
       const s = new TASON.Serializer({ indent: false });
       const o: any = { a: 1 };
       o[Symbol.for("hidden")] = 2;
       expect(s.stringify(o)).toBe("{a:1}");
     });
 
-    test("[Symbol.iterator] method marks object as iterable (special protocol)", () => {
+    test("Symbol.iterator method", () => {
+      // 合法 iterator 协议 → 按 iterable 写成数组，不写对象字段
       const s = new TASON.Serializer({ indent: false });
       const o: any = {
         *[Symbol.iterator]() {
@@ -93,22 +97,23 @@ describe("Symbol edge cases", () => {
           yield 2;
         },
       };
-      // 按 iterable → 数组，不是 {}；iterator 本身不会当字段写出
       expect(s.stringify(o)).toBe("[1,2]");
     });
 
-    test("[Symbol.iterator] present but not a method → error", () => {
+    test("Symbol.iterator non-method", () => {
       const s = new TASON.Serializer({ indent: false });
       const o: any = { a: 1 };
-      o[Symbol.iterator] = 3; // 不是方法
+      o[Symbol.iterator] = 3;
       expect(() => s.stringify(o)).toThrow(/Symbol\.iterator.*not a method/i);
     });
 
-    test("[Symbol.asyncIterator] not a method → error; method → async unsupported", () => {
+    test("Symbol.asyncIterator", () => {
       const s = new TASON.Serializer({ indent: false });
       const bad: any = { a: 1 };
       bad[Symbol.asyncIterator] = "nope";
-      expect(() => s.stringify(bad)).toThrow(/Symbol\.asyncIterator.*not a method/i);
+      expect(() => s.stringify(bad)).toThrow(
+        /Symbol\.asyncIterator.*not a method/i,
+      );
 
       const good: any = {
         async *[Symbol.asyncIterator]() {
@@ -118,16 +123,17 @@ describe("Symbol edge cases", () => {
       expect(() => s.stringify(good)).toThrow(/async iterable/i);
     });
 
-    test("protocol symbols never appear as object fields in output", () => {
+    test("protocol vs data symbols", () => {
+      // 无 iterator：数据 Symbol 值可写，Symbol 键丢弃
+      // 有合法 iterator：整对象当数组，字段与协议键都不以对象字段出现
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
       });
-      // 无 iterator 协议时：其它 Symbol 键丢弃，字符串键正常；输出不含 Symbol( 字段键形态
       const o: any = { a: 1, b: Symbol.for("val") };
       o[Symbol.toStringTag] = "Tag";
       expect(s.stringify(o)).toBe(`{a:1,b:Symbol("val")}`);
-      // 有合法 iterator 时走数组，字段 a / 协议键都不会以对象字段形式出现
+
       const it: any = {
         a: 99,
         *[Symbol.iterator]() {
@@ -137,14 +143,14 @@ describe("Symbol edge cases", () => {
       expect(s.stringify(it)).toBe(`["x"]`);
     });
 
-    test("TASON grammar cannot use TypeInstance as object key", () => {
+    test("TypeInstance as object key in grammar", () => {
       const s = new TASON.Serializer({ allowUnsafeTypes: true });
       expect(() => s.parse(`{Symbol("k"):1}`)).toThrow();
     });
   });
 
-  describe("as Map / Dictionary key", () => {
-    test("useBuiltinDictionary + allowUnsafeTypes: Symbol key round-trip", () => {
+  describe("as Map key", () => {
+    test("Dictionary with allowUnsafeTypes", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         useBuiltinDictionary: true,
@@ -166,7 +172,8 @@ describe("Symbol edge cases", () => {
       expect(back.get("str")).toBe(true);
     });
 
-    test("useBuiltinDictionary without allowUnsafeTypes: symbol key throws", () => {
+    test("Dictionary without allowUnsafeTypes", () => {
+      // Map 内 symbol 已进入序列化逻辑 → 报错，不可静默丢弃
       const s = new TASON.Serializer({
         useBuiltinDictionary: true,
         allowUnsafeTypes: false,
@@ -176,11 +183,11 @@ describe("Symbol edge cases", () => {
         [Symbol.for("k"), 1],
         ["ok", 2],
       ]);
-      // Map 中的 symbol 已进入序列化逻辑 → 报错，不可静默丢弃
       expect(() => s.stringify(m)).toThrow(/allowUnsafeTypes/i);
     });
 
-    test("without useBuiltinDictionary + allowUnsafeTypes: symbol keys skipped, string kept", () => {
+    test("plain object Map with allowUnsafeTypes", () => {
+      // 无 Dictionary：仅保留字符串键
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         useBuiltinDictionary: false,
@@ -190,11 +197,10 @@ describe("Symbol edge cases", () => {
         [Symbol.for("k"), 1],
         ["a", 2],
       ]);
-      // 对象语法无法表达 Symbol 键；仅保留字符串键
       expect(s.stringify(m)).toBe(`{a:2}`);
     });
 
-    test("without useBuiltinDictionary without allowUnsafeTypes: symbol key throws", () => {
+    test("plain object Map without allowUnsafeTypes", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: false,
         useBuiltinDictionary: false,
@@ -211,14 +217,14 @@ describe("Symbol edge cases", () => {
     });
   });
 
-  describe("local / empty / identity traps", () => {
-    test("local Symbol() and Symbol(desc) cannot serialize", () => {
+  describe("identity and description", () => {
+    test("local Symbol", () => {
       const s = new TASON.Serializer({ allowUnsafeTypes: true });
       expect(() => s.stringify(Symbol())).toThrow(/local/i);
       expect(() => s.stringify(Symbol("only-local"))).toThrow(/local/i);
     });
 
-    test("empty description Symbol.for('') round-trips", () => {
+    test("empty description", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
@@ -228,7 +234,8 @@ describe("Symbol edge cases", () => {
       expect(s.parse(text)).toBe(Symbol.for(""));
     });
 
-    test("Symbol.for('Symbol.iterator') collapses to well-known on deserialize", () => {
+    test("Symbol.for vs well-known name collision", () => {
+      // 反序列化时 "Symbol.iterator" 解析为 well-known，不是全局 registry 同名项
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
@@ -241,7 +248,7 @@ describe("Symbol edge cases", () => {
       expect(back).not.toBe(globalNamed);
     });
 
-    test("description with special chars", () => {
+    test("special characters in description", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         indent: false,
@@ -252,8 +259,8 @@ describe("Symbol edge cases", () => {
     });
   });
 
-  describe("Dictionary filter: symbol as value", () => {
-    test("Map string key + symbol value with allowUnsafeTypes", () => {
+  describe("as Map or object value", () => {
+    test("Map value with allowUnsafeTypes", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: true,
         useBuiltinDictionary: true,
@@ -266,7 +273,7 @@ describe("Symbol edge cases", () => {
       expect(back.get("k")).toBe(Symbol.for("v"));
     });
 
-    test("Map string key + symbol value without allowUnsafeTypes: throws", () => {
+    test("Map value without allowUnsafeTypes", () => {
       const s = new TASON.Serializer({
         allowUnsafeTypes: false,
         useBuiltinDictionary: true,
@@ -279,12 +286,12 @@ describe("Symbol edge cases", () => {
       expect(() => s.stringify(m)).toThrow(/allowUnsafeTypes/i);
     });
 
-    test("object string key + symbol value without allowUnsafeTypes: throws", () => {
+    test("object value without allowUnsafeTypes", () => {
       const s = new TASON.Serializer({ indent: false });
       expect(() => s.stringify({ a: Symbol.for("x") })).toThrow(/symbol/i);
     });
 
-    test("array symbol element without allowUnsafeTypes: throws", () => {
+    test("array element without allowUnsafeTypes", () => {
       const s = new TASON.Serializer({ indent: false });
       expect(() => s.stringify([1, Symbol.for("x")])).toThrow(/symbol/i);
     });

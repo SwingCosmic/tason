@@ -1,7 +1,7 @@
 import TASONTypeRegistry from "./TASONTypeRegistry";
 
 /**
- * 序列化数值处理策略
+ * 序列化数值处理策略（与 .NET BuiltinNumberOption 对齐）
  * - unsafe-only（默认）：仅当数值超出安全范围时才装箱
  * - all：可识别数值实现尽量装箱
  * - object-type-property：对于ObjectTypeInstance相当于all；其它相当于unsafe-only
@@ -15,16 +15,20 @@ export type SerializeNumberHandling =
 
 /**
  * 反序列化数值处理策略
- * - native：全拆箱，使用原生number/bigint，以及对`Decimal128`使用Decimal
- * - all：保留包装类（旧版默认逻辑）
- * - record-type（默认）：尽可能尝试记录数值类型（主要针对数组和ObjectTypeInstance），以便于序列化的时候转回去，然后执行native
- * - object-type-property：对于ObjectTypeInstance相当于all；其它相当于native
+ * - native：全拆箱；**忽略** schema 契约
+ * - all：保留包装类；不按 schema 收值
+ * - object-fallback-native（默认）：ObjectType 有字段契约 → RuntimeType；
+ *   否则拆箱（native）。契约仅挂在 ObjectType 上。
+ * - object-fallback-all：ObjectType 有字段契约 → RuntimeType；
+ *   否则 OT 内保留包装（all），外仍拆箱。
+ *
+ * 注：序列化侧仍使用 `object-type-property`（与 .NET 一致），与反序列化名称不同。
  */
 export type DeserializeNumberHandling =
   | "native"
   | "all"
-  | "record-type"
-  | "object-type-property";
+  | "object-fallback-native"
+  | "object-fallback-all";
 
 export interface TASONSerializerOptions {
   /** 是否允许使用不安全的类型，默认 false */
@@ -47,7 +51,7 @@ export interface TASONSerializerOptions {
    */
   serializeNumberHandling?: SerializeNumberHandling;
   /**
-   * 反序列化数值处理，默认 `"record-type"`。
+   * 反序列化数值处理，默认 `"object-fallback-native"`。
    * @see DeserializeNumberHandling
    */
   deserializeNumberHandling?: DeserializeNumberHandling;

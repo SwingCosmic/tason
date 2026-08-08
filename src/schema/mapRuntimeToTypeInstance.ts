@@ -7,6 +7,7 @@ import {
   resolveSerializeNumberHandling,
   trySerializeNumberAsLiteral,
   trySerializeNumberAsSafeNumberLiteral,
+  type NumberHandlingContext,
 } from "@/types/NumberHandling";
 
 /** 序列化叶子映射结果：字面量文本，或 TypeInstance 的类型名 + 标量参数 */
@@ -18,13 +19,15 @@ export type RuntimeSerializeForm =
 /**
  * 按期望 RuntimeType + serialize Handling 决定写出形式。
  * RuntimeType → 多种 TypeInstance/字面量 的默认路径选择。
+ * @param ctx 可选；`inObjectType` 使 object-type-property 在 OT 内按 all 解析
  */
 export function mapRuntimeToTypeInstance(
   runtimeType: RuntimeType,
   value: unknown,
   serializeHandling: SerializeNumberHandling,
+  ctx?: NumberHandlingContext,
 ): RuntimeSerializeForm {
-  const effective = resolveSerializeNumberHandling(serializeHandling);
+  const effective = resolveSerializeNumberHandling(serializeHandling, ctx);
 
   switch (runtimeType) {
     case "bigint":

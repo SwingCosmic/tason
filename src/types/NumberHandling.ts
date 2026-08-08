@@ -43,32 +43,49 @@ const NUMBER_WRAPPER_CTORS = [
   Decimal128,
 ] as const;
 
-/** 阶段 1：无契约时的有效序列化策略 */
+/**
+ * Handling 解析上下文。
+ * 序列化：C# `ValueScope` — OT 成员路径上 `object-type-property` ≈ all。
+ * 反序列化：`object-fallback-all` 在 OT 成员路径上无契约时 ≈ all。
+ */
+export interface NumberHandlingContext {
+  /** 当前值处于 ObjectTypeInstance 成员（含其内数组/嵌套 plain object） */
+  inObjectType?: boolean;
+}
+
+/** 无契约时的有效序列化策略 */
 export type EffectiveSerializeNumberHandling =
   | "unsafe-only"
   | "all"
   | "none";
 
-/** 阶段 1：无契约时的有效反序列化策略 */
+/** 无契约时的有效反序列化策略 */
 export type EffectiveDeserializeNumberHandling = "native" | "all";
 
 export function resolveSerializeNumberHandling(
   handling: SerializeNumberHandling,
+  ctx?: NumberHandlingContext,
 ): EffectiveSerializeNumberHandling {
-  // 阶段 1 无 ObjectType 字段上下文：object-type-property → unsafe-only
   if (handling === "object-type-property") {
-    return "unsafe-only";
+    // 与 .NET 一致：ObjectType 属性内 ≈ All；外 ≈ UnsafeOnly
+    return ctx?.inObjectType ? "all" : "unsafe-only";
   }
   return handling;
 }
 
 export function resolveDeserializeNumberHandling(
   handling: DeserializeNumberHandling,
+  ctx?: NumberHandlingContext,
 ): EffectiveDeserializeNumberHandling {
-  // 阶段 1 无字段/数组记录上下文：record-type / object-type-property → native
   if (handling === "all") {
     return "all";
   }
+  if (handling === "object-fallback-all") {
+    // 无契约时：OT 内保留包装；外层全拆箱
+    return ctx?.inObjectType ? "all" : "native";
+  }
+  // object-fallback-native / native：值级路径按 native 拆箱；
+  // 有 schema 契约时由 mapTypeInstanceToRuntime / Visitor 另行处理
   return "native";
 }
 
@@ -90,8 +107,9 @@ export function isNumberWrapper(value: unknown): value is INumber<unknown> {
 export function unwrapNumberInstance(
   value: unknown,
   handling: DeserializeNumberHandling,
+  ctx?: NumberHandlingContext,
 ): unknown {
-  if (resolveDeserializeNumberHandling(handling) === "all") {
+  if (resolveDeserializeNumberHandling(handling, ctx) === "all") {
     return value;
   }
 

@@ -6,7 +6,7 @@ import { Buffer as _Buffer } from "@/types/Buffer";
 import { DateOnly, TimeOnly } from "@/types/date";
 
 describe("内置类型序列化测试", () => {
-  test("numbers (default unsafe-only: safe → number literal)", () => {
+  test("numbers (unsafe-only)", () => {
     expect(TASON.stringify(new UInt8("64"))).toEqual("64");
     expect(TASON.stringify(new Int16("-0xAB"))).toEqual("-171");
     expect(TASON.stringify(new Int32("0o123456"))).toEqual("42798");
@@ -19,7 +19,7 @@ describe("内置类型序列化测试", () => {
       .toEqual(`BigInt("340282366920938463463374607431768211456")`);
   });
 
-  test("numbers (serialize all keeps TypeName)", () => {
+  test("numbers (all)", () => {
     const s = new TASON.Serializer({ serializeNumberHandling: "all" });
     expect(s.stringify(new UInt8("64"))).toEqual(`UInt8("64")`);
     expect(s.stringify(new Int16("-0xAB"))).toEqual(`Int16("-171")`);
