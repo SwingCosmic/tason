@@ -2,7 +2,7 @@ import { TASONSerializerOptions } from "./TASONSerializerOptions";
 import type TASONTypeRegistry from "./TASONTypeRegistry";
 import { Buffer } from "./types/Buffer";
 import { DictionaryTypeInfo } from "./types/Dictionary";
-import { TASONTypeInfo } from "./types/TASONTypeInfo";
+import { TASONTypeInfo } from "./TASONTypeInfo";
 import typeDetect from "type-detect";
 import {
   isNumberTypeName,
@@ -10,6 +10,9 @@ import {
   trySerializeNumberAsLiteral,
   trySerializeNumberAsSafeNumberLiteral,
 } from "./types/NumberHandling";
+import { mapRuntimeToTypeInstance } from "./schema/mapRuntimeToTypeInstance";
+import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
+import type { RuntimeType } from "./schema/RuntimeType";
 
 export class TASONGenerator {
   private options: Required<TASONSerializerOptions>;
@@ -52,11 +55,26 @@ export class TASONGenerator {
     } else if (Array.isArray(value)) {
       return this.ArrayValue(value);
     } else if (Symbol.iterator in (value as any)) {
+      // 可迭代协议：仅当 [Symbol.iterator] 真是方法时才按 iterable 序列化
+      const iter = (value as any)[Symbol.iterator];
+      if (typeof iter !== "function") {
+        throw new Error(
+          `[Symbol.iterator] is present but is not a method (got ${typeof iter}). ` +
+            `Protocol symbols must be functions when used for iteration.`,
+        );
+      }
       return this.MaybeArrayValue(value as any);
     } else if (Symbol.asyncIterator in (value as any)) {
+      const aiter = (value as any)[Symbol.asyncIterator];
+      if (typeof aiter !== "function") {
+        throw new Error(
+          `[Symbol.asyncIterator] is present but is not a method (got ${typeof aiter}). ` +
+            `Protocol symbols must be functions when used for iteration.`,
+        );
+      }
       throw new Error(`Cannot serialize async iterable type`);
     } else {
-      return this.MaybeObjectValue(value);
+      return this.MaybeObjectValue(value as object);
     }
   }
 
@@ -105,13 +123,34 @@ export class TASONGenerator {
           name: "Dictionary",
         });
       } else {
-        const entries = Object.fromEntries<any>(
-          Array.from(value.entries()).filter(e => {
-            return typeof e[0] === "string" && typeof e[1] !== "function";
-          }),
-        );
-        return this.ObjectValue(entries);  
+        // Map → 普通对象：仅字符串键。
+        // 无 allowUnsafeTypes 时，symbol 键/值已进入序列化逻辑 → 必须报错（不可静默丢弃）。
+        // 有 allowUnsafeTypes 时，symbol 键仍无法写入对象语法，跳过；symbol 值可保留。
+        const entries: [string, unknown][] = [];
+        for (const [k, v] of value.entries()) {
+          if (typeof k === "function" || typeof v === "function") {
+            continue;
+          }
+          if (typeof k === "symbol" || typeof v === "symbol") {
+            if (!this.options.allowUnsafeTypes) {
+              throw new Error(
+                `Cannot serialize symbol as Map key or value when allowUnsafeTypes is false`,
+              );
+            }
+            if (typeof k === "symbol") {
+              continue; // 对象字面量无法表达 Symbol 键
+            }
+          }
+          if (typeof k !== "string") {
+            continue;
+          }
+          entries.push([k, v]);
+        }
+        return this.ObjectValue(Object.fromEntries(entries));
       }
+    }
+    if (value instanceof Set) {
+      return this.ArrayValue(Array.from(value));
     }
     return this.ArrayValue(Array.from(value));
   }
@@ -198,6 +237,38 @@ export class TASONGenerator {
       return this.Value(obj.toTASON())!;
     }
 
+    // 可枚举 Symbol 键（协议 iterable 已在 Value 分支处理，一般不会落到此处）
+    const symbolKeys = Object.getOwnPropertySymbols(obj).filter((s) =>
+      Object.prototype.propertyIsEnumerable.call(obj, s),
+    );
+
+    // allowUnsafeTypes + 存在 Symbol 键：尝试把含 symbol 的键值对读进来
+    // - useBuiltinDictionary → 提升为 Dictionary 完整表达
+    // - 否则对象语法无法表达 Symbol 键 → 忽略（仅字符串键）
+    if (
+      this.options.allowUnsafeTypes &&
+      this.options.useBuiltinDictionary &&
+      symbolKeys.length > 0
+    ) {
+      const map = new Map<any, any>();
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === "function") continue;
+        if (this.options.nullPropertyHandling === "ignore" && v == null) continue;
+        map.set(k, v);
+      }
+      for (const sk of symbolKeys) {
+        const v = obj[sk as any];
+        if (typeof v === "function") continue;
+        if (this.options.nullPropertyHandling === "ignore" && v == null) continue;
+        map.set(sk, v);
+      }
+      return this.TypeInstanceValue(map, {
+        ...this.registry.getDefaultType("Dictionary")!,
+        name: "Dictionary",
+      });
+    }
+
+    // 默认 / 无 Dictionary：仅字符串可枚举键（Object.entries）；Symbol 键忽略
     const pairs: string[] = [];
     this.indentLevel++;
     {
@@ -229,6 +300,90 @@ export class TASONGenerator {
     }
   }
 
+  /**
+   * 带 schema 的 object 写出：叶子按 RuntimeType + serialize Handling 映射（2.1）。
+   */
+  ObjectValueWithSchema(
+    obj: Record<string, any>,
+    schema: unknown,
+    adapter: RuntimeSchemaAdapter,
+  ): string {
+    if (!adapter.isSchema(schema)) {
+      return this.ObjectValue(obj);
+    }
+    const entries = adapter.objectEntries(schema);
+    if (!entries) {
+      return this.ObjectValue(obj);
+    }
+
+    const fieldKinds = new Map<string, RuntimeType>();
+    for (const [key, fieldSchema] of entries) {
+      fieldKinds.set(key, adapter.runtimeType(fieldSchema));
+    }
+
+    // 以实例字段为准；schema 提供期望 kind
+    const pairs: string[] = [];
+    this.indentLevel++;
+    {
+      this.checkDepth();
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === "function") {
+          continue;
+        }
+        if (this.options.nullPropertyHandling === "ignore" && value == null) {
+          continue;
+        }
+
+        const keyStr = this.Key(key);
+        const kind = fieldKinds.get(key);
+        let valueStr: string | undefined;
+
+        if (
+          kind != null &&
+          kind !== "unknown" &&
+          kind !== "object" &&
+          kind !== "array"
+        ) {
+          valueStr = this.emitMappedField(kind, value);
+        } else {
+          valueStr = this.Value(value, "object-value");
+        }
+
+        if (valueStr === undefined) {
+          continue;
+        }
+        const space = this.options.indent === false ? "" : " ";
+        pairs.push(`${this.indent()}${keyStr}:${space}${valueStr}`);
+      }
+    }
+    this.indentLevel--;
+
+    if (pairs.length === 0) {
+      return "{}";
+    }
+
+    if (this.options.indent === false) {
+      return `\{${pairs.join(",")}\}`;
+    } else {
+      return `\{\n${pairs.join(",\n")}\n${this.indent()}\}`;
+    }
+  }
+
+  private emitMappedField(kind: RuntimeType, value: unknown): string {
+    const mapped = mapRuntimeToTypeInstance(
+      kind,
+      value,
+      this.options.serializeNumberHandling,
+    );
+    if (mapped.form === "literal") {
+      return mapped.text;
+    }
+    if (mapped.form === "type-instance") {
+      return `${mapped.typeName}(${this.StringValue(mapped.scalarArg)})`;
+    }
+    return this.Value(mapped.value, "object-value")!;
+  }
+
   Key(key: string) {
     if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
       return key;
@@ -242,7 +397,24 @@ export class TASONGenerator {
     if (type.kind === "scalar") {
       argStr = this.StringValue(arg as string);
     } else {
-      argStr = this.ObjectValue(arg as object);
+      // 2.1：ObjectType + metadata + adapter → 叶子按契约写出
+      const metadata = this.registry.getClassMetadata(type.name);
+      const adapter = this.registry.getSchemaAdapter();
+      if (
+        metadata &&
+        adapter &&
+        adapter.isSchema(metadata.schema) &&
+        typeof arg === "object" &&
+        arg !== null
+      ) {
+        argStr = this.ObjectValueWithSchema(
+          arg as Record<string, any>,
+          metadata.schema,
+          adapter,
+        );
+      } else {
+        argStr = this.ObjectValue(arg as object);
+      }
     }
     return `${type.name}(${argStr})`;
   }

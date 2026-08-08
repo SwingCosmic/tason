@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { Constructor } from "type-fest";
-import { defineType, TASONTypeInfo } from "./TASONTypeInfo";
+import { defineType, TASONTypeInfo } from "@/TASONTypeInfo";
 
 export interface INumber<T> {
   readonly value: T;

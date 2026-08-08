@@ -1,4 +1,4 @@
-import { TASONTypeInfo } from "./TASONTypeInfo";
+import { TASONTypeInfo } from "@/TASONTypeInfo";
 import NumberTypes from "./numbers";
 import { SymbolTypeInfo } from "./js/Symbol";
 import JSONTypes from "./json";

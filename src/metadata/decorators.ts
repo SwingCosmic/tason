@@ -1,5 +1,5 @@
 import { Constructor } from "type-fest";
-import { TASONTypeInfo } from "./TASONTypeInfo";
+import { TASONTypeInfo } from "@/TASONTypeInfo";
 
 export const TASONTypeNameKey = "tason:type";
 export const TASONTypeInfoKey = "tason:type-info";

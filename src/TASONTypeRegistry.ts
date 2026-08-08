@@ -4,16 +4,23 @@ import {
   getDeclaredType,
   TASONTypeDiscriminator,
   TypeDiscriminatorKey,
-} from "./types/metadata";
-import { TASONNamedTypeInfo, TASONTypeInfo } from "./types/TASONTypeInfo";
+  type TasonClassMetadata,
+} from "./metadata";
+import { TASONNamedTypeInfo, TASONTypeInfo } from "./TASONTypeInfo";
+import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
 
 interface TASONRegistryEntry<T> {
   name: string;
   types: TASONTypeInfo<T>[];
+  /** R1：与 register 同生命周期的 ClassMetadata 旁路 */
+  metadata?: TasonClassMetadata;
 }
 
 export default class TASONTypeRegistry {
   private readonly types: Map<string, TASONRegistryEntry<any>> = new Map();
+
+  /** 默认无 adapter；需显式 setSchemaAdapter(createValibotAdapter()) */
+  private schemaAdapter: RuntimeSchemaAdapter | undefined;
 
   private readonly options: TASONSerializerOptions;
   constructor(options: TASONSerializerOptions) {
@@ -29,19 +36,86 @@ export default class TASONTypeRegistry {
     }
   }
 
-  /** 克隆一个具有相同注册类型的TASONTypeRegistry，以进行独立的操作 */
+  /** 克隆一个具有相同注册类型与 adapter 的 TASONTypeRegistry */
   clone() {
     const ret = new TASONTypeRegistry(this.options);
     for (const [name, type] of this.types) {
-      ret.types.set(name, type);
+      ret.types.set(name, {
+        name: type.name,
+        types: [...type.types],
+        metadata: type.metadata,
+      });
     }
+    ret.schemaAdapter = this.schemaAdapter;
     return ret;
   }
 
-  /** 注册一个类型 */
-  registerType<T>(name: string, typeInfo: TASONTypeInfo<T>) {
+  /**
+   * 注册或清除 RuntimeSchemaAdapter。
+   * 传入 null 清除；默认无实现。
+   */
+  setSchemaAdapter(adapter: RuntimeSchemaAdapter | null): void {
+    this.schemaAdapter = adapter ?? undefined;
+  }
+
+  getSchemaAdapter(): RuntimeSchemaAdapter | undefined {
+    return this.schemaAdapter;
+  }
+
+  /**
+   * 注册一个类型。
+   * @param metadata 可选 ClassMetadata（含 schema 契约）；R1 存于 entry 旁路
+   */
+  registerType<T>(
+    name: string,
+    typeInfo: TASONTypeInfo<T>,
+    metadata?: TasonClassMetadata,
+  ) {
     let entry = this.getEntry(name);
     entry.types.push(typeInfo);
+    if (metadata !== undefined) {
+      entry.metadata = metadata;
+    }
+  }
+
+  /** 读取类型的 ClassMetadata（整包）；无则 undefined。不提供 getSchema。 */
+  getClassMetadata(name: string): TasonClassMetadata | undefined {
+    return this.types.get(name)?.metadata;
+  }
+
+  /**
+   * 按 JS 构造函数查找已注册 TypeName（第一个匹配的 entry）。
+   * Schema 侧只表达 RuntimeType/ctor；转 TypeName 是 Registry 的职责。
+   */
+  findTypeNameByCtor(
+    ctor: abstract new (...args: any[]) => any,
+  ): string | undefined {
+    for (const [name, entry] of this.types) {
+      for (const type of entry.types) {
+        if (type.ctor === ctor) {
+          return name;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * 按构造函数 + **TypeInstance 标量参数**构造实例（ctor → TypeName → createInstance）。
+   * 仅用于已带类型语义的标量参数（来自 `Date("…")` 等 TypeInstance 的内部 arg），
+   * **不是**把 JSON 字符串字面量偷换成 Date/RegExp（字面量保真见 mapTypeInstanceToRuntime）。
+   */
+  createInstanceByCtor<T = unknown>(
+    ctor: abstract new (...args: any[]) => any,
+    scalarArg: string,
+  ): T {
+    const name = this.findTypeNameByCtor(ctor);
+    if (!name) {
+      throw new Error(
+        `No registered TypeName for constructor ${ctor.name || "(anonymous)"}`,
+      );
+    }
+    return this.createInstance<T>(name, scalarArg);
   }
 
   /** 注册一个类型别名，指向已有的类型 */

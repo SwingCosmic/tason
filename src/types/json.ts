@@ -1,5 +1,5 @@
-import { TASONTypeDiscriminator, TypeDiscriminatorKey } from "./metadata";
-import { defineType } from "./TASONTypeInfo";
+import { TASONTypeDiscriminator, TypeDiscriminatorKey } from "@/metadata";
+import { defineType } from "@/TASONTypeInfo";
 
 export class JSON implements TASONTypeDiscriminator {
   readonly jsonString: string;

@@ -77,8 +77,7 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 
 JavaScript 运行时类型设计（序列化/反序列化数值策略拆分、实体元数据、鸭子类型/多态）与迁移实施方案：
 
-- [运行时类型设计](docs/features/runtime-type-design.md)
-- [实施方案](docs/features/implementation-plan.md)
+- [Feature 包：runtime-type](docs/features/runtime-type/)（[设计](docs/features/runtime-type/runtime-type-design.md) · [进度](docs/features/runtime-type/implementation-plan.md)）
 
 ## 使用
 

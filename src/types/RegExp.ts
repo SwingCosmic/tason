@@ -1,4 +1,4 @@
-import { defineType } from "./TASONTypeInfo";
+import { defineType } from "@/TASONTypeInfo";
 
 const regexpPattern = /^\/(.+)\/([gimnsxuy]*)$/;
 

@@ -92,7 +92,7 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
 
 ### ⚠️ 数字类型注意事项
 
-> **JavaScript 实现说明**：JS/TS 没有定长数值原语。序列化/反序列化数值选项拆分（kebab-case）、实体元数据与鸭子类型等见 [runtime-type-design.md](./features/runtime-type-design.md)；落地见 [implementation-plan.md](./features/implementation-plan.md)。
+> **JavaScript 实现说明**：JS/TS 没有定长数值原语。序列化/反序列化数值选项拆分（kebab-case）、实体元数据与鸭子类型等见 feature 包 [runtime-type](./features/runtime-type/)（[设计](./features/runtime-type/runtime-type-design.md) · [进度](./features/runtime-type/implementation-plan.md)）。
 
 标准不要求提供UInt8以外的无符号整数类型，以及8位有符号整数。很多语言如Java不支持无符号整数类型，并且被.NET标记为CLS不兼容。
 
@@ -157,16 +157,29 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
   * 在非泛型字典中，如js和Java中通常会丢弃非法的键值对
   * 在C#中，如果泛型`Dictionary<K, V>`的键类型`K`不是字符串，则会抛出异常；非泛型字典丢弃字符串以外的键值对
 * ⚠️ 在js中使用数字作为Map的键会在序列化时转换为字符串，反序列化时会产生类型错误
-* ❌ 不支持js Symbol作为键
+* ⚠️ js 的 Symbol 键 / 值及可迭代协议：见 [不安全的类型 · Symbol](#不安全的类型)
 
-如果确实需要非字符串的键，包括对象或者Symbol，可以设置选项`useBuiltinDictionary`为true来序列化为内置Dictionary类型，而不是对象
+如果确实需要非字符串的键（含对象键等），可以设置选项`useBuiltinDictionary`为true来序列化为内置Dictionary类型，而不是对象
 
 ### 不安全的类型
 
 > 以下类型需要启用`allowUnsafeTypes`选项才能使用
 
 * ⚠️ js的`Symbol`: 因为其设计上的特殊性，虽然Symbol可以被序列化和反序列化，但不能保证反序列化后的Symbol对象与原始Symbol对象是同一个。
-  * ❌ 无法序列化和反序列化不在全局Symbol注册表中的本地Symbol。
+  * ✅ 可作为**属性值** / 数组元素（需 `allowUnsafeTypes`）
+  * ✅ 可作为 **Dictionary/Map 的键或值**（需 `allowUnsafeTypes`；完整往返建议再加 `useBuiltinDictionary`）
+  * **未**开启 `allowUnsafeTypes` 时：凡 symbol **进入序列化逻辑**（属性值、数组元素、Map/Dictionary 的 key 或 value）一律**报错**，不得静默丢弃
+  * **普通对象上的 Symbol 键**：
+    * 未 `allowUnsafeTypes`：不进入序列化视图（与 `Object.entries` 一致），忽略
+    * 有 `allowUnsafeTypes`：会尝试读取可枚举 Symbol 键值对  
+      * ✅ 有 `useBuiltinDictionary` → 提升为 `Dictionary`，Symbol 键可完整序列化  
+      * ⚠️ 否则TASON对象语法无法表达 → **忽略** Symbol 键（仅保留字符串键）
+  * **可迭代协议** `[Symbol.iterator]` / `[Symbol.asyncIterator]`：
+    * 必须是**方法**（`typeof === "function"`），否则**报错**
+    * `iterator` 为方法 → 按 **iterable** 展开（优先于对象/Dictionary 字段路径）
+    * `asyncIterator` 为方法 → 不支持，报错
+  * ❌ 本地 `Symbol()` / `Symbol("desc")`（仅 `Symbol.for` 与 well-known）
+  * ⚠️ 描述名为 well-known 的 `Symbol.for("Symbol.toStringTag")` 反序列化会落到 well-known `Symbol.toStringTag`（身份可能变化）
 * ⚠️ 共享内存对象，如js的`SharedArrayBuffer`: 由于可以被多线程写入，无法保证值在序列化时是固定的；始终克隆一个`ArrayBuffer`的副本以防止被修改。
 * ⚠️ 指针类型：只能序列化为对应的基础数值类型；无法反序列化，反序列化指针没有意义且具有严重的安全问题
 

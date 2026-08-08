@@ -14,7 +14,7 @@ import type {
   SerializeNumberHandling,
 } from "../TASONSerializerOptions";
 
-/** 线格式 / 别名中的数值标量类型名 */
+/** TASON 类型名及别名中的数值标量类型名 */
 export const NUMBER_TYPE_NAMES = new Set([
   "UInt8",
   "Int16",

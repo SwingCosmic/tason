@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import TASON from "@/index";
-import { TASONType } from "@/types/metadata";
+import { TASONType } from "@/metadata";
 
 class User {
   name: string;
@@ -98,10 +98,15 @@ describe("stringify", () => {
       [true, "foo"]
     ])))
       .toEqual(`Dictionary({pairs:[[Symbol("Symbol.toStringTag"),"bar"],[true,"foo"]]})`);
-    expect(TASON.stringify(new Map<any, any>([
-      [Symbol.toStringTag, "bar"], 
-      ["a", "b"]
-    ]))).toEqual(`{a:"b"}`);
+    // 默认无 allowUnsafeTypes：Map 中出现 symbol 键/值必须报错（不可静默丢弃）
+    expect(() =>
+      TASON.stringify(
+        new Map<any, any>([
+          [Symbol.toStringTag, "bar"],
+          ["a", "b"],
+        ]),
+      ),
+    ).toThrow(/allowUnsafeTypes|symbol/i);
 
     expect(s.stringify(new Map([[{a:1}, new Map([[1,2]])]])))
       .toEqual(`Dictionary({pairs:[[{a:1},Dictionary({pairs:[[1,2]]})]]})`);

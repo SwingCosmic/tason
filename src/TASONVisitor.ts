@@ -25,6 +25,9 @@ import unescape from "unescape-js";
 import Decimal from "decimal.js";
 import { TASONSerializerOptions } from "./TASONSerializerOptions";
 import { unwrapNumberInstance } from "./types/NumberHandling";
+import { mapTypeInstanceToRuntime } from "./schema/mapTypeInstanceToRuntime";
+import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
+import type { RuntimeType } from "./schema/RuntimeType";
 
 export class TASONVisitor {
   private registry: TASONTypeRegistry;
@@ -83,6 +86,64 @@ export class TASONVisitor {
       }
     }
     pairs.forEach(pair => obj[pair.key] = pair.value);
+    return obj;
+  }
+
+  /**
+   * 带 schema 的 object 解析：按字段 RuntimeType 收敛叶子（2.1）。
+   * 无法识别 schema 时回退普通 Object。
+   */
+  ObjectWithSchema(
+    ctx: ObjectContext,
+    schema: unknown,
+    adapter: RuntimeSchemaAdapter,
+  ): Record<string, any> {
+    if (!adapter.isSchema(schema)) {
+      return this.Object(ctx);
+    }
+
+    const entries = adapter.objectEntries(schema);
+    if (!entries) {
+      return this.Object(ctx);
+    }
+
+    type FieldContract = {
+      kind: RuntimeType;
+      ctor: (abstract new (...args: any[]) => any) | null;
+    };
+    const fieldContracts = new Map<string, FieldContract>();
+    for (const [key, fieldSchema] of entries) {
+      const kind = adapter.runtimeType(fieldSchema);
+      fieldContracts.set(key, {
+        kind,
+        ctor: kind === "instance" ? adapter.instanceCtor(fieldSchema) : null,
+      });
+    }
+
+    const obj: Record<string, any> = this.options.nullPrototypeObject
+      ? Object.create(null)
+      : {};
+    const pairs = ctx.pair_list().map(p => this.Pair(p));
+    if (!this.options.allowDuplicatedKeys) {
+      const keys = pairs.map(p => p.key);
+      if (keys.length !== new Set(keys).size) {
+        throw new Error(`Duplicate keys in object`);
+      }
+    }
+
+    const handling = this.options.deserializeNumberHandling;
+    for (const pair of pairs) {
+      const contract = fieldContracts.get(pair.key);
+      const kind = contract?.kind;
+      if (kind != null && kind !== "unknown" && kind !== "object" && kind !== "array") {
+        // 字面量保真：不把 string 冒充 Date/RegExp/数字；TypeInstance 已在 Pair 中构造成实例
+        obj[pair.key] = mapTypeInstanceToRuntime(kind, pair.value, handling, {
+          ctor: contract?.ctor ?? undefined,
+        });
+      } else {
+        obj[pair.key] = pair.value;
+      }
+    }
     return obj;
   }
 
@@ -157,9 +218,29 @@ export class TASONVisitor {
 
   ObjectTypeInstance(ctx: ObjectTypeInstanceContext) {
     const typeName = ctx.IDENTIFIER().getText();
-    const obj = this.Object(ctx.object());
+    const typeInfo = this.registry.getDefaultType(typeName);
+    if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
 
+    // 2.1：record-type + adapter + metadata → 叶子按契约收值
+    // native 忽略契约；all 保留包装（不走契约转换）；object-type-property 仍降级
+    if (this.shouldApplySchemaContract()) {
+      const metadata = this.registry.getClassMetadata(typeName);
+      const adapter = this.registry.getSchemaAdapter();
+      if (metadata && adapter && adapter.isSchema(metadata.schema)) {
+        const bag = this.ObjectWithSchema(ctx.object(), metadata.schema, adapter);
+        return this.registry.createInstance(typeInfo, bag);
+      }
+    }
+
+    const obj = this.Object(ctx.object());
     return this.createTypeInstance(typeName, obj);
+  }
+
+  /** 阶段 2.1：仅 record-type 在有契约时应用叶子映射 */
+  private shouldApplySchemaContract(): boolean {
+    const h = this.options.deserializeNumberHandling;
+    // native：全拆箱忽略契约；all：保留包装；object-type-property：2.1 仍降级
+    return h === "record-type";
   }
 
   private createTypeInstance(typeName: string, value: any) {

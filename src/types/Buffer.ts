@@ -2,7 +2,7 @@
 
 type NodeBuffer = import("node:buffer").Buffer<ArrayBuffer>;
 import { decode as decodeBase64, encode as encodeBase64 } from "base64-arraybuffer";
-import { defineType } from "./TASONTypeInfo";
+import { defineType } from "@/TASONTypeInfo";
 
 function copySharedArrayBuffer(buffer: SharedArrayBuffer) {
   const ret = new ArrayBuffer(buffer.byteLength);
