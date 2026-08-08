@@ -92,7 +92,10 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
 
 ### ⚠️ 数字类型注意事项
 
-> **JavaScript 实现说明**：JS/TS 没有定长数值原语。序列化/反序列化数值选项拆分（kebab-case）、实体元数据与鸭子类型等见 feature 包 [runtime-type](./features/runtime-type/)（[设计](./features/runtime-type/runtime-type-design.md) · [进度](./features/runtime-type/implementation-plan.md)）。
+> **JavaScript 实现说明**：JS/TS 没有定长数值原语（仅有 `number` / `bigint`）。本仓库通过 **数值处理选项** 控制装箱/拆箱，并通过 **实体 Schema** 把字段收成期望的运行时类型。使用说明：
+>
+> - [数值处理（Number Handling）](./number-handling.md)
+> - [实体元数据与 Schema](./class-metadata.md)
 
 标准不要求提供UInt8以外的无符号整数类型，以及8位有符号整数。很多语言如Java不支持无符号整数类型，并且被.NET标记为CLS不兼容。
 

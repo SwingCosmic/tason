@@ -73,18 +73,17 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 
 ## 类型系统
 
-参见 [类型系统说明](docs/type-system.md)。
-
-JavaScript 运行时类型设计（序列化/反序列化数值策略拆分、实体元数据、鸭子类型/多态）与迁移实施方案：
-
-- [Feature 包：runtime-type](docs/features/runtime-type/)（[设计](docs/features/runtime-type/runtime-type-design.md) · [进度](docs/features/runtime-type/implementation-plan.md)）
+- [类型系统说明](docs/type-system.md) — 语法类型、内置类型与规范约定
+- [数值处理](docs/number-handling.md) — 序列化/反序列化数值装箱与拆箱策略
+- [实体元数据与 Schema](docs/class-metadata.md) — 用 Valibot 等契约把字段收成 `bigint` / `Date` 等运行时类型
+- [正则表达式](docs/regexp.md) — `RegExp` 类型实例与选项
 
 ## 使用
 
-主要的类为`TASONSerializer`，提供了`parse`和`stringify`方法。
-该类的构造函数支持传递一些参数来控制序列化和反序列化的行为，例如是否允许重复的对象键，缩进级别，最大嵌套层次等。
+主要的类为 `TASONSerializer`，提供 `parse` 和 `stringify`。  
+构造函数可配置缩进、最大嵌套、重复键、**数值处理**等行为。
 
-包的默认导出对象`TASON`是具有合理默认参数的`TASONSerializer`实例，可以直接使用。
+包的默认导出 `TASON` 是带合理默认参数的 `TASONSerializer` 实例，可直接使用；需要独立配置时用 `new TASON.Serializer({ ... })`。
 
 ### 安装
 
@@ -96,7 +95,13 @@ yarn add tason
 pnpm add tason
 ```
 
-注意 `tason` 仅支持 ESM，因此你的项目如果在前端使用，需要一个模块打包器如 `vite`、`webpack`等；如果在node.js使用，需要原生支持ESM导入
+`tason` 仅支持 ESM：前端需打包器（Vite、webpack 等）；Node.js 需原生 ESM。
+
+使用 [实体 Schema](docs/class-metadata.md) 时，请额外安装可选依赖：
+
+```bash
+npm install valibot
+```
 
 ### 反序列化
 
@@ -130,7 +135,13 @@ const people = TASON.parse<Person[]>(
     age: 25,
   }),
 ]`);
+```
 
+默认会将 `Int64("…")` 等拆成原生 `bigint` / `number`。需要保留包装类时：
+
+```typescript
+const s = new TASON.Serializer({ deserializeNumberHandling: "all" });
+s.parse(`Int64("42")`); // Int64 实例
 ```
 
 ### 序列化
@@ -138,8 +149,8 @@ const people = TASON.parse<Person[]>(
 ```typescript
 import TASON from 'tason';
 const serializer = new TASON.Serializer({
-  indent: 2, //指定缩进级别为2个空格
-  registry: TASON.registry.clone(), // 复用全局实例的类型注册表
+  indent: 2, // 缩进 2 空格
+  registry: TASON.registry.clone(), // 复用全局类型注册表
 });
 
 const people = [
@@ -148,5 +159,36 @@ const people = [
 ];
 
 console.log(serializer.stringify(people));
-
 ```
+
+默认仅在数值超出安全范围时写出类型名；需要尽量带类型名时使用 `serializeNumberHandling: "all"`。详见 [数值处理](docs/number-handling.md)。
+
+### 实体字段的精确运行时类型（Schema）
+
+仅 `registerType` 只能得到类实例，**字段值的 JS 类型**仍受数值处理默认策略影响。  
+若希望 `id` 稳定为 `bigint`、`when` 为 `Date` 等，可为类型挂上 schema（官方适配 [Valibot](https://valibot.dev/)）：
+
+```typescript
+import TASON, { createValibotAdapter } from "tason";
+import * as v from "valibot";
+
+class User {
+  id!: bigint;
+  name!: string;
+  constructor(init?: Partial<User>) {
+    if (init) Object.assign(this, init);
+  }
+}
+
+TASON.registry.setSchemaAdapter(createValibotAdapter());
+TASON.registry.registerType(
+  "User",
+  { kind: "object", ctor: User },
+  { schema: v.object({ id: v.bigint(), name: v.string() }) },
+);
+
+const u = TASON.parse<User>(`User({ id: Int64("1"), name: "Ada" })`);
+// u.id === 1n
+```
+
+如何挂接 schema、自定义 adapter（含 Zod 示例）见 [实体元数据与 Schema](docs/class-metadata.md)。
