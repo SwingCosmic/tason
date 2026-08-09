@@ -1,20 +1,19 @@
 {
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "module": "CommonJS",
     "importHelpers": true,
     "baseUrl": ".",
-    "types": [
-    ],
+    "types": [],
     "paths": {
-      "@/*": [ "../src/*" ]
+      "@/*": ["../src/*"]
     },
-    "outDir": "./lib",
+    "outDir": "./lib"
   },
   "include": [
     "./**/*.ts"
   ],
   "exclude": [
     "node_modules"
-  ],
-  "extends": "../tsconfig.base.json"
+  ]
 }

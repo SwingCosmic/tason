@@ -1,0 +1,47 @@
+{
+  "name": "tason-mongodb",
+  "version": "0.1.0",
+  "description": "MongoDB / BSON type extensions for TASON",
+  "type": "module",
+  "keywords": [
+    "tason",
+    "mongodb",
+    "bson",
+    "serialization",
+    "objectid"
+  ],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc && tsc-alias",
+    "test": "jest --passWithNoTests"
+  },
+  "files": [
+    "lib"
+  ],
+  "author": "LoveKicher",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SwingCosmic/tason.git",
+    "directory": "packages/tason-mongodb"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "bson": "^6.0.0",
+    "tason": "^1.1.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "bson": "^6.10.4",
+    "jest": "^29.7.0",
+    "tason": "1.1.4-beta2",
+    "ts-jest": "^29.2.5",
+    "tsc-alias": "^1.8.10",
+    "tslib": "^2.8.1",
+    "typescript": "^5.2.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

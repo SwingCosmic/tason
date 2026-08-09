@@ -1,67 +1,25 @@
 {
-  "name": "tason",
-  "version": "1.1.4-beta2",
-  "description": "Type-Augmented Serialization Object Notation",
-  "type": "module",
-  "keywords": [
-    "json",
-    "json5",
-    "typescript",
-    "json-like",
-    "serialization",
-    "parser",
-    "antlr"
+  "name": "tason-monorepo",
+  "private": true,
+  "description": "TASON monorepo — core package and type extensions",
+  "workspaces": [
+    "packages/*"
   ],
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
   "scripts": {
-    "generate": "cd src/grammar && antlr4 -v 4.13.2 -Dlanguage=TypeScript TASON.g4",
-    "build": "tsc && tsc-alias",
-    "test": "jest"
+    "build": "yarn workspaces run build",
+    "test": "yarn workspaces run test",
+    "generate": "yarn workspace tason generate",
+    "build:tason": "yarn workspace tason build",
+    "build:mongodb": "yarn workspace tason-mongodb build",
+    "test:tason": "yarn workspace tason test",
+    "test:mongodb": "yarn workspace tason-mongodb test"
   },
-  "files": [
-    "lib"
-  ],
-  "author": "LoveKicher",
   "repository": {
     "type": "git",
     "url": "https://github.com/SwingCosmic/tason.git"
   },
   "license": "MIT",
-  "devDependencies": {
-    "@jest/globals": "^29.7.0",
-    "@types/type-detect": "^4.0.3",
-    "@types/unescape-js": "^1.0.3",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.2.5",
-    "tsc-alias": "^1.8.10",
-    "tslib": "^2.8.1",
-    "type-fest": "^4.34.0",
-    "typescript": "^5.2.2",
-    "valibot": "^1.0.0"
-  },
-  "dependencies": {
-    "@date-fns/utc": "^2.1.0",
-    "antlr4": "^4.13.2",
-    "base64-arraybuffer": "^1.0.2",
-    "date-fns": "^4.1.0",
-    "decimal.js": "^10.5.0",
-    "js-string-escape": "^1.0.1",
-    "reflect-metadata": "^0.2.2",
-    "type-detect": "^4.1.0",
-    "unescape-js": "^1.1.4",
-    "uuid": "^11.1.0"
-  },
-  "peerDependencies": {
-    "valibot": "^1.0.0"
-  },
-  "peerDependenciesMeta": {
-    "valibot": {
-      "optional": true
-    }
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
+  "engines": {
+    "node": ">=18"
   }
 }

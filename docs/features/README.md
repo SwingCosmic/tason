@@ -15,3 +15,5 @@
 | 子目录 | 主题 |
 | --- | --- |
 | [runtime-type/](./runtime-type/) | 数值 Handling · schema · 鸭子类型（设计与分阶段任务） |
+| [monorepo/](./monorepo/) | Yarn workspaces · 扩展包约定 · `tason-mongodb`（A+B 脚手架已落地；类型实现待细化） |
+| [polymorphic-persistence/](./polymorphic-persistence/) | TypeInstance 文档标记中间层（`_t` + to/fromDocument）；**与** monorepo BSON 标量包 **分列** |

@@ -43,7 +43,7 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
 
 ## 语法
 
-详细语法见此ANTLR4语法文件 [TASON.g4](src/grammar/TASON.g4)
+详细语法见此ANTLR4语法文件 [TASON.g4](packages/tason/src/grammar/TASON.g4)
 
 TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了类型支持。
 
@@ -78,6 +78,17 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 - [实体元数据与 Schema](docs/class-metadata.md) — 用 Valibot 等契约把字段收成 `bigint` / `Date` 等运行时类型
 - [正则表达式](docs/regexp.md) — `RegExp` 类型实例与选项
 
+## 仓库结构
+
+本仓库为 **Yarn Workspaces monorepo**：
+
+| 包 | 目录 | 说明 |
+| --- | --- | --- |
+| [`tason`](packages/tason) | `packages/tason` | 核心序列化（npm 包名不变） |
+| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展（脚手架；实现待定） |
+
+贡献者请在仓库根执行 `yarn install` / `yarn build` / `yarn test`。发布从各包目录进行。
+
 ## 使用
 
 主要的类为 `TASONSerializer`，提供 `parse` 和 `stringify`。  
@@ -94,6 +105,8 @@ yarn add tason
 # or
 pnpm add tason
 ```
+
+MongoDB `ObjectId` 等 BSON 类型需额外包 `tason-mongodb`（**尚未实现**；见 [packages/tason-mongodb](packages/tason-mongodb)）。
 
 `tason` 仅支持 ESM：前端需打包器（Vite、webpack 等）；Node.js 需原生 ESM。
 

@@ -25,8 +25,14 @@ lerna-debug.log*
 *.sln
 *.sw?
 *.code-workspace
-*.lock
+# 保留 yarn.lock；勿再忽略 *.lock
 
+# 各包 build 输出
 /lib
+packages/*/lib
+packages/*/coverage
+coverage
 
 .antlr/
+
+/misc

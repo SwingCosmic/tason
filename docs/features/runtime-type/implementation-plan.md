@@ -14,9 +14,9 @@ JS 选项字符串一律 **kebab-case**。
 ## 进度总览
 
 ```
-Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3
- 选项+值级数值   目录+Valibot+叶子    结构递归+OTP       鸭子/多态
-   [done]          [done]            [done]
+Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3a ──► Phase 3b
+ 选项+值级数值   目录+Valibot+叶子    结构递归+OTP     默认实现      parseAs/鸭子打磨
+   [done]          [done]            [done]          (Mongo 前置)    (可后置)
 ```
 
 | 阶段 | 名称 | 状态 | 分册 |
@@ -24,7 +24,8 @@ Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3
 | **1** | 数值双选项（无字段上下文） | **已完成** | [phase-1-number-handling.md](./phase-1-number-handling.md) |
 | **2.1** | schema 定义与简单应用 | **已完成** | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) |
 | **2.2** | 结构递归 + Handling 上下文 + 全数值契约 | **已完成** | 同上 |
-| **3** | 鸭子类型与多态 | 待办 | [phase-3-duck-types.md](./phase-3-duck-types.md) |
+| **3a** | 指定 TypeName **默认实现**（`setDefaultType` / `asDefault`） | 待办 · **Mongo 前置** | [phase-3-duck-types.md](./phase-3-duck-types.md) |
+| **3b** | 鸭子注册语义 + `parseAs` 多态 | 待办 · 可后置 | 同上 |
 
 ---
 
@@ -32,11 +33,13 @@ Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3
 
 1. 数值：序列化 / 反序列化 Number Handling 拆分；值级拆箱/写出（**阶段 1 ✓**）。  
 2. ClassMetadata = 现成库 Schema + adapter 薄映射（RuntimeType ↔ TypeInstance/字面量）（**阶段 2**）。  
-3. 鸭子类型 + `parseAs` 多态选型（**阶段 3**）。
+3. 同名多实现：**默认实现可配置**（**3a**）+ 鸭子 / `parseAs` 调用级选型（**3b**）。
 
-**范围内：** 双 Handling、`RuntimeSchemaAdapter` + 可注册 Valibot 实现（默认不启用）、RuntimeType↔TypeName/字面量映射、`registerDuckType` / `parseAs`、目录整理（`TASONTypeInfo` 顶层、`metadata/`）。
+**范围内：** 双 Handling、`RuntimeSchemaAdapter` + 可注册 Valibot 实现（默认不启用）、RuntimeType↔TypeName/字面量映射、`setDefaultType` / `registerType(..., { asDefault })`、`registerDuckType` / `parseAs`、目录整理（`TASONTypeInfo` 顶层、`metadata/`）。
 
-**范围外：** 自研 TypeName 挂载树作主 API、ExtraMember、命名约定、多库全适配、Zod 强绑 core、bson、Writer/HTTP、枚举元数据。
+**范围外：** 自研 TypeName 挂载树作主 API、ExtraMember、命名约定、多库全适配、Zod 强绑 core、bson 实现本身（在 [monorepo / tason-mongodb](../monorepo/)）、Writer/HTTP、枚举元数据。
+
+**与 Mongo 扩展：** 用户可将 `bson.Long` 设为 TypeName `Int64` 的默认实现，避免反复 ser/de 时 RuntimeType 在核心包装与 BSON 类之间抖动。详见 phase-3 **3a**；**不要求** 3b 完成后再做 `tason-mongodb`。
 
 ---
 
@@ -54,7 +57,11 @@ setSchemaAdapter(adapter | null): void                   // 默认无实现
 getSchemaAdapter(): RuntimeSchemaAdapter | undefined
 // 导出 createValibotAdapter() → setSchemaAdapter(createValibotAdapter())
 
-// 鸭子 / 期望类型（阶段 3）
+// 默认实现（阶段 3a · Mongo 等扩展前置）
+setDefaultType(name, typeInfo): void
+// registerType(name, typeInfo, metadata?, { asDefault?: boolean })
+
+// 鸭子 / 期望类型（阶段 3b）
 registerDuckType(name, typeInfo): void
 parseAs(expected, text): T
 ```
