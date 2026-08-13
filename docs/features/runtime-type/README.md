@@ -58,7 +58,7 @@ Date、RegExp、UUID、Buffer 等 JSON 表达不了的类型，必须写 **TypeI
 | [runtime-type-design.md](./runtime-type-design.md) | 设计 |
 | [phase-1-number-handling.md](./phase-1-number-handling.md) | 阶段 1 · 数值 Handling（**已完成**） |
 | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2 · Class 元数据 + schema（**2.1 · 2.2 done**） |
-| [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 · 鸭子 / 多态（待办） |
+| [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 · 鸭子类型 / 默认实现 / parseAs（API 已锁定） |
 
 用户文档：[number-handling](../../number-handling.md) · [class-metadata](../../class-metadata.md) · [type-system](../../type-system.md)  
 C# 参考：`E:\dev\VS2022\tason-net`

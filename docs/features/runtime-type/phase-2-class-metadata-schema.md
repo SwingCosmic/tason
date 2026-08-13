@@ -11,7 +11,7 @@
 | 子阶段 | 焦点 | 不做 | 状态 |
 | --- | --- | --- | --- |
 | **2.1** | 目录重构、Valibot 导出、adapter 骨架、注册 metadata、**简单叶子** | 多维数组完备、override、object-type-property 全语义、decimal 完备 | **done** |
-| **2.2** | 递归 walk（array/嵌套 object）+ 全数值边界 + OTP 上下文 | 鸭子选型、无 schema 记 TypeName、override/brand（[阶段 3](./phase-3-duck-types.md) / 2.2b） | **done** |
+| **2.2** | 递归 walk（array/嵌套 object）+ 全数值边界 + OTP 上下文 | 多实现解析、无 schema 记 TypeName、override/brand（[阶段 3](./phase-3-duck-types.md) / 2.2b） | **done** |
 
 ---
 

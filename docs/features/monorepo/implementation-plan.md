@@ -24,7 +24,7 @@
 | 完整 MongoDB 驱动封装 | 只做 **TASON TypeName ↔ BSON 值** 的 ser/de |
 | **对象图 `_t` 打标 / toDocument / fromDocument** | **禁止** 放进 `tason-mongodb`；见 [polymorphic-persistence](../polymorphic-persistence/)（TASON 中间层） |
 | 一次迁完所有未来扩展 | 只落地 MongoDB 包；约定留好即可（JSON 库扩展、AspNet 对等物等后续） |
-| 强依赖阶段 3 鸭子类型全部完成 | MongoDB **MVP 可先用现有 `registerType` 多实现**；默认实现见 3a |
+| 强依赖阶段 3 完成后再写类型 | **是**：核心 [phase-3](../runtime-type/phase-3-duck-types.md) DoD 后再实现注册逻辑 |
 | Turborepo / Nx / Changesets 一上来全套 | 首期 workspaces + 脚本即可；发布编排可二期 |
 
 ---
@@ -167,14 +167,17 @@ export function registerMongoDBTypes(
 ): TASONTypeRegistry;
 
 export type RegisterMongoDBTypesOptions = {
-  /** 是否把 bson.Long 等挂到已有 TypeName（Int64 等）上，默认 true */
-  duckOntoBuiltins?: boolean;
   /**
-   * 将 Mongo 运行时类设为对应 TypeName 的 **默认实现**（依赖核心 3a：`setDefaultType` / `asDefault`）。
-   * 开启后 parse `Int64("…")` 直接得到 `bson.Long`，减少与驱动之间的反复装箱抖动。
-   * 默认建议：Mongo 优先应用可 `true` 或按 TypeName 细开；纯文档交换可只 duck 不改默认。
+   * 是否将 bson.Long / Decimal128 等设为对应内置 TypeName 的 **默认实现**
+   *（依赖核心 `asDefault` / `setDefaultType`）。
+   * - 缺省 / false：仅追加类型实现（parse 仍用核心默认；stringify 可识别实例）
+   * - true：对可映射项全部替换默认
+   * - 对象：按 TypeName 细开
+   *
+   * 旧名 duckOntoBuiltins / defaultImplementations 废止（标识符约定见 AGENTS.md）。
+   * 「挂到 Int64 等内置名」由类型矩阵 + include 决定，无单独开关。
    */
-  defaultImplementations?: boolean | {
+  replaceDefaultImplementation?: boolean | {
     Int64?: boolean;
     Decimal128?: boolean;
     // …
@@ -203,20 +206,20 @@ s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 | 策略 | 说明 |
 | --- | --- |
 | **新增 TypeName** | 如 `ObjectId`、`MinKey`：`registerType` 即可 |
-| **鸭子到已有 TypeName** | 如 bson `Long` → TypeName `Int64`：`registerType("Int64", longTypeInfo)`（push）。仅此则 parse **仍 core 默认**；stringify 时 `instanceof` 命中鸭子 |
-| **设为默认实现（推荐 Mongo 优先）** | 依赖核心 **[phase-3 · 3a](../runtime-type/phase-3-duck-types.md)**：`registerType(..., { asDefault: true })` 或 `setDefaultType`。parse `Int64("…")` → `bson.Long`，多轮 ser/de RuntimeType 稳定 |
-| **别名** | 如需要 `Long` 作为独立 TypeName 写出：`registerTypeAlias("Long", "Int64")` 或单独 scalar（**二选一写进 MongoDB 分阶段**，避免双语义） |
-| **幂等** | 文档约定「同一 registry 只 register 一次」；实现侧可不强制检测，测试覆盖重复注册行为 |
+| **追加类型实现（挂到已有 TypeName）** | 如 bson `Long` → `Int64`：`registerType("Int64", longTypeInfo)`（push）。parse **仍 core 默认**；stringify 时 `instanceof` 命中 |
+| **替换默认实现（推荐 Mongo 优先）** | 核心 [phase-3](../runtime-type/phase-3-duck-types.md)：`asDefault` / `setDefaultType`；选项 **`replaceDefaultImplementation`**。parse `Int64("…")` → `bson.Long` |
+| **别名** | 如需要 `Long` 作为独立 TypeName：`registerTypeAlias` 或单独 scalar（**二选一**，避免双语义） |
+| **幂等** | 文档约定「同一 registry 只 register 一次」 |
 
-与 [phase-3-duck-types](../runtime-type/phase-3-duck-types.md) 的关系：
+与 [phase-3-duck-types](../runtime-type/phase-3-duck-types.md) 的关系（**阶段 3 在 Mongo 类型实现前整包完成**）：
 
-| 能力 | 何时 | Mongo 是否硬依赖 |
+| 能力 | 核心 API | Mongo 用法 |
 | --- | --- | --- |
-| 多实现 + stringify 鸭子 | **已有** | 仅 duck 场景够用 |
-| **3a 指定默认实现** | **Mongo P0 前或同步** | **要做「默认 Long」时硬依赖** |
-| 3b `parseAs` / `registerDuckType` 打磨 | 可后置 | 否（单次选型；全局默认用 3a） |
+| 追加类型实现 + stringify 认实例 | `registerType` push | 纳入 `include` 即注册到对应 TypeName |
+| 替换默认实现 | `asDefault` / `setDefaultType` | **`replaceDefaultImplementation`** |
+| 单次选型 | `parseAs` / `getTypeInfoByCtor` | 应用层可选；包内不强制 |
 
-**不需要**等完整阶段 3 做完再开 Mongo；**需要**调整阶段 3 范围并 **提前 3a**。
+**阶段 3 DoD 完成后再实现** `tason-mongodb` 类型注册逻辑。
 
 ### 3.4 核心需保证的公开导出（迁包时核对）
 
@@ -243,7 +246,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | **`bson` / `mongodb` 驱动** | 权威实现；`ObjectId`、`Long`、`Decimal128`、`Binary`、`Double`、`Timestamp`、`UUID`… 均从此包（或 `mongodb` 再导出） | 读写文档时即为这些类的实例 |
 | **`mongoose-long`** | **不**另造 Long：`Types.Long = mongoose.mongo.Long`；自定义 `Schema.Types.Long` 只做 **cast**（`fromNumber` / `fromString` / `instanceof mongo.Long`） | 路径上是 **`bson.Long`（即 driver Long）** |
 | **Mongoose 内置** | `Types.Decimal128` **直接 re-export** `mongodb` 的 BSON Decimal128；`Types.ObjectId` 同族；`Schema.Types.*` 是配置，**不是**值类型 | ObjectId / Decimal128 等为 BSON 实例 |
-| **Mongoose `BigInt` SchemaType** | 存库为 BSON long，**内存为原生 `bigint`** | **不是** `Long` 实例 → 走核心 `bigint` / Int64 路径，不是 Mongo 鸭子 |
+| **Mongoose `BigInt` SchemaType** | 存库为 BSON long，**内存为原生 `bigint`** | **不是** `Long` 实例 → 走核心 `bigint` / Int64 路径，不是 Mongo Long 的追加类型实现 |
 | **Mongoose `Int32` / `Double`** | Int32 常为 **number**；Double 常为 **`bson.Double` 包装** | 与「裸 number」不完全同一 |
 | **Mongoose UUID** | BSON Binary subtype 4；访问时可能 getter 成 **string** | ser 前注意是 Binary 还是 string |
 | **Typegoose 等** | 建立在 Mongoose 之上，值类型仍是 `mongoose.Types.*` / bson | 同 Mongoose |
@@ -254,26 +257,26 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 场景 | 能否生效 | 条件 / 注意 |
 | --- | --- | --- |
 | `stringify` 查询结果 / `lean()` 文档中的 `ObjectId`、`Long`、`Decimal128` | **能** | 注册对应 TypeInfo，且 **`instanceof` 命中**（同一 bson 副本） |
-| `parse` 出上述类型再 `insertOne` / 赋给 mongoose 路径 | **能** | 3a 将默认实现设为 BSON 类，或业务侧接受 cast；`mongoose-long` 的 `cast` 也认 `instanceof mongo.Long` |
+| `parse` 出上述类型再 `insertOne` / 赋给 mongoose 路径 | **能** | `replaceDefaultImplementation` 将默认设为 BSON 类，或业务侧接受 cast；`mongoose-long` 的 `cast` 也认 `instanceof mongo.Long` |
 | 未 `registerMongoDBTypes` 就 parse `ObjectId("…")` | **不能** | 核心无 ObjectId |
 | 直接 `stringify(mongooseDocument)` 整棵 Document | **部分** | Document 有原型/内部状态；**推荐 `doc.toObject()` / `lean()`** 后再 stringify |
-| Schema 声明为 `BigInt` 的字段 | **靠核心** | 值是 `bigint`，用核心 number handling / Int64，不必 Mongo Long 鸭子 |
+| Schema 声明为 `BigInt` 的字段 | **靠核心** | 值是 `bigint`，用核心 number handling / Int64，不必 Mongo Long 的追加类型实现 |
 | 双份 `bson`（nested node_modules） | **易失效** | `instanceof` 失败 → stringify 认不出、parse 出的类驱动不认。**强制 peer `bson`，文档要求与 `mongodb`/`mongoose` 对齐版本** |
 | 插件自定义 SchemaType 但值仍是 bson 类 | **能** | 与 mongoose-long 同模式 |
-| 插件自造 **非 bson** 的包装类 | **默认不能** | 需再 register 鸭子或适配；本包不承诺扫插件 |
+| 插件自造 **非 bson** 的包装类 | **默认不能** | 需再追加类型实现或适配；本包不承诺扫插件 |
 
 **设计推论（固定）：**
 
 1. TypeInfo 的 `ctor` **优先使用 `bson` 包导出**（`ObjectId`、`Long`、`Decimal128`…），不要自建平行类。  
 2. `peerDependencies`：`bson`（及文档说明：与项目中 `mongodb` / `mongoose` 解析到的 bson 一致）。可选说明也可 `import { Long } from "mongodb"`，但 monorepo 实现侧统一从 `bson` import，避免分叉。  
 3. **不为 mongoose-long 写专用适配**；兼容其文档字段 = 兼容 `bson.Long`。  
-4. README 写清：对 Mongoose 先 `toObject({ flattenMaps: true })` 等再 TASON；BigInt Schema ≠ Long 鸭子。  
+4. README 写清：对 Mongoose 先 `toObject({ flattenMaps: true })` 等再 TASON；BigInt Schema ≠ Long 的追加类型实现。  
 5. 双包危害写进风险表与测试：可用集成测「从 mongoose 取出的 ObjectId 能被 registry 认出」。
 
 ### 4.1 设计原则
 
 1. **TypeName 语言无关**：文本里写 `ObjectId("…")`，运行时用 **`bson.ObjectId`**（直接官方类，保证 `instanceof`）。
-2. **能复用核心 TypeName 的复用**（鸭子），避免「同一语义两个 TypeName」除非生态惯例不同。
+2. **能复用核心 TypeName 的复用**（支持鸭子类型注册 / 追加类型实现），避免「同一语义两个 TypeName」除非生态惯例不同。
 3. **命名冲突显式处理**（见下表 Timestamp / Decimal128 / UUID）。
 4. 依赖 **`bson` peer**（权威运行时）；不强制 peer 完整 `mongodb`，但允许用户从驱动 re-export 拿到同一类。
 5. **不**做 Mongoose SchemaType / 插件注册；只做 TypeName ↔ BSON 值。
@@ -283,12 +286,12 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 优先级 | TypeName（TASON 文本） | 运行时（建议） | 策略 | 备注 |
 | --- | --- | --- | --- | --- |
 | **P0** | `ObjectId` | `bson.ObjectId` | **新 TypeName** | README 示例刚需；hex 24 字符 |
-| **P0** | `Int64` | `bson.Long` | **鸭子**到内置 `Int64` | 与 runtime-type 概念表一致；默认 parse 仍 core `Int64` 包装 |
-| **P0** | `Decimal128` | `bson.Decimal128` | **鸭子**到内置 `Decimal128` | 字符串参数与 Extended JSON 对齐 |
+| **P0** | `Int64` | `bson.Long` | **追加类型实现**到内置 `Int64` | 默认 parse 仍 core 包装，除非 `replaceDefaultImplementation` |
+| **P0** | `Decimal128` | `bson.Decimal128` | **追加类型实现**到内置 `Decimal128` | 字符串参数与 Extended JSON 对齐 |
 | **P1** | `Binary` 或 `BinData` | `bson.Binary` | 新 TypeName | 与核心 `Buffer` 并存：`Buffer` 通用 base64/hex；Binary 保留 subtype |
-| **P1** | `UUID` | `bson.UUID` / Binary subtype | 鸭子到 `UUID` 或独立 | 需对比核心 `UUID` 字符串形式，避免双重默认 |
+| **P1** | `UUID` | `bson.UUID` / Binary subtype | 追加类型实现到 `UUID` 或独立 | 需对比核心 `UUID` 字符串形式，避免双重默认 |
 | **P2** | `MinKey` / `MaxKey` | `bson.MinKey` / `MaxKey` | 新 TypeName | 标量参数可为空串或固定字面量（实现时定） |
-| **P2** | MongoDB `Timestamp` | `bson.Timestamp` | **慎用名** | 核心已有 **毫秒** `Timestamp`；**不可**静默覆盖。可选：`BsonTimestamp` / `MongoTimestamp`，或仅鸭子且不改默认 types[0] |
+| **P2** | MongoDB `Timestamp` | `bson.Timestamp` | **慎用名** | 核心已有 **毫秒** `Timestamp`；**不可**静默覆盖。可选：`BsonTimestamp` / `MongoTimestamp`，或仅追加类型实现且不改默认 |
 | **P3** | `Code` / `DBRef` 等 | 对应 bson 类型 | 按需 | 非查询 DTO 主路径，可后置 |
 | 通常不注册 | `Date` / `RegExp` / 普通 number | 核心已覆盖 | — | BSON Date ↔ JS Date 已由核心 `Date` 处理 |
 
@@ -299,7 +302,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | `Date` | 不重复注册；文档说明 Mongo 日期用 `Date("…")` |
 | `RegExp` | 同上；若需 BSON RegExp 选项差异，P3 再评估 |
 | `Buffer` | 通用二进制；Mongo `Binary` 有 subtype → 单独 TypeName |
-| `UUID` / `Decimal128` / 数字包装 | 鸭子增强，不替换默认实现 |
+| `UUID` / `Decimal128` / 数字包装 | 追加类型实现增强；是否替换默认见 `replaceDefaultImplementation` |
 | `Timestamp`（毫秒） | **保留核心语义**；BSON Timestamp（ordinal + t）另名或后置 |
 
 ### 4.4 序列化形态（P0 草案）
@@ -307,7 +310,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | TypeName | 标量字符串示例 | 说明 |
 | --- | --- | --- |
 | `ObjectId` | `ObjectId("6670f391dcb0bd791cb3bd18")` | 小写 hex，与 Mongo shell / 工具一致 |
-| `Int64`（Long 实例） | `Int64("6571037680684232705")` | stringify 鸭子 Long 时写 Int64；不强制写 `Long(...)` 除非做了别名 |
+| `Int64`（Long 实例） | `Int64("6571037680684232705")` | stringify 命中 Long 实现时写 Int64；不强制写 `Long(...)` 除非做了别名 |
 | `Decimal128` | `Decimal128("114514.1919")` | 与核心一致 |
 
 对象类型（ObjectType）首期 **不需要**（BSON 特殊类型多为 scalar）。
@@ -319,9 +322,9 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | M1 | 未 register：parse `ObjectId("…")` 失败或未知类型（与现 Registry 行为一致） |
 | M2 | register 后 round-trip `ObjectId` |
 | M3 | `stringify(new ObjectId(…))` → `ObjectId("…")` |
-| M4 | `stringify(Long.fromString(…))` → `Int64("…")`（鸭子） |
-| M5 | parse `Int64("…")` 默认仍为核心实现（非 Long），除非日后 `parseAs` |
-| M6 | Decimal128 鸭子 round-trip（实例为 bson.Decimal128） |
+| M4 | `stringify(Long.fromString(…))` → `Int64("…")`（追加类型实现） |
+| M5 | parse `Int64("…")` 默认仍为核心实现（非 Long），除非 `replaceDefaultImplementation` / `parseAs` |
+| M6 | Decimal128 追加类型实现 round-trip（实例为 bson.Decimal128） |
 | M7 | 与核心 number-handling 无回归（扩展包测试不复制全量矩阵） |
 | M8 | `instanceof`：用 `bson.ObjectId` / `Long` 构造的值能 `tryGetTypeInfo`（模拟驱动读出的值） |
 | M9（可选集成） | 若 devDep 含 mongoose：`lean()` 文档中 ObjectId/Decimal128 round-trip（不强制 CI 必装） |
@@ -351,17 +354,15 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 **风险：** 历史 git 对 `src/` 的 blame 因移动变模糊 → 可用 `git mv` 保留历史。
 
-### 阶段 A′ — 核心 3a（可与 A 并行或紧接 A）
+### 阶段 A′ — 核心阶段 3（Mongo 类型实现之前）
 
 | # | 任务 |
 | --- | --- |
-| A′.1 | 实现 `setDefaultType` / `registerType(..., { asDefault })`（见 [phase-3 3a](../runtime-type/phase-3-duck-types.md)） |
-| A′.2 | 核心测试 D0–D0d；`clone` 保持默认 |
-| A′.3 | 导出公开 API；implementation-plan / phase-3 勾选 3a DoD |
+| A′.1 | 按 [phase-3 锁定 API](../runtime-type/phase-3-duck-types.md) 实现 `asDefault` / `setDefaultType*` / `getTypeInfoByCtor` / `parseAs` |
+| A′.2 | 测试 `multi-implementation.test.ts`（D0–D7）；clone；builtin 冒烟 |
+| A′.3 | 导出与 phase-3 DoD 勾选 |
 
-**DoD：** 可把任意已注册实现设为某 TypeName 的 parse 默认；builtin 无回归。
-
-> 若暂不做「默认 Long」、只 duck：A′ 可延后，但 **推荐与 Mongo P0 一起做**，否则用户仍踩反复转换问题。
+**DoD：** phase-3 DoD 全勾；其后才写 `tason-mongodb` 类型注册实现。
 
 ### 阶段 B — 扩展约定落地 + MongoDB 骨架
 
@@ -369,8 +370,8 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | --- | --- |
 | B.1 | 核对并补齐核心公开导出（`defineType`、`setDefaultType` 等） |
 | B.2 | `packages/tason-mongodb`：package.json（peer: `tason`, `bson`）、tsconfig、jest |
-| B.3 | `registerMongoDBTypes` 空实现 + 导出表结构 + `defaultImplementations` 选项形状 |
-| B.4 | 包 README：安装、register 示例、**默认实现 vs 仅鸭子** |
+| B.3 | `registerMongoDBTypes` 空实现 + 导出表结构 + `replaceDefaultImplementation` 选项形状 |
+| B.4 | 包 README：安装、register 示例、**替换默认 vs 仅追加类型实现** |
 | B.5 | 工作区联调：core 改 API 时 extension 编译失败应可见 |
 
 **DoD：** 包可 build；register 空操作不破坏 registry；至少 1 个 smoke test。
@@ -380,8 +381,8 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | # | 任务 |
 | --- | --- |
 | C.1 | `ObjectId` TypeInfo + 测试 M1–M3 |
-| C.2 | `Long` → `Int64` 鸭子 + M4–M5；**可选/推荐** `defaultImplementations.Int64` + 多轮 round-trip 类型稳定测 |
-| C.3 | `bson.Decimal128` → `Decimal128` 鸭子 + M6；同上默认开关 |
+| C.2 | `Long` → `Int64` 追加类型实现 + M4–M5；**可选/推荐** `replaceDefaultImplementation.Int64` + 多轮 round-trip |
+| C.3 | `bson.Decimal128` → `Decimal128` 追加类型实现 + M6；同上默认开关 |
 | C.4 | `docs/type-system.md` 增加「扩展类型 / MongoDB」交叉链接（用户向短节或链到包 README） |
 | C.5 | 根 README 示例改为「需 `tason-mongodb`」的明确说明 |
 
@@ -433,12 +434,12 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 1. **Yarn workspaces** + `packages/*`；核心目录名 `packages/tason`，npm 名不变。  
 2. 扩展包 npm 名 **`tason-mongodb`**；注册 API **`registerMongoDBTypes(registry, options?)`**。  
 3. BSON 依赖用 **`bson` peer**，不用整包 `mongodb` 作为硬依赖。  
-4. **ObjectId 新 TypeName**；Long / Decimal128 **鸭子到现有 TypeName**，不替换默认 parse 实现。  
+4. **ObjectId 新 TypeName**；Long / Decimal128 **追加类型实现到现有 TypeName**；是否替换默认由 **`replaceDefaultImplementation`** 控制。  
 5. **不覆盖** 核心 `Timestamp`（毫秒）语义。  
 6. Mongo 类型 **不进** `packages/tason/src/types` 默认表。  
 7. `docs/` 留在仓库根；feature 进度在 `docs/features/monorepo/`。  
-8. Mongo「默认用 Long」依赖核心 **3a**（`setDefaultType` / `asDefault`），**不**依赖完整 3b（`parseAs`）。3b 后置补文档即可。  
-9. 仅鸭子、不改默认：可用现有 `registerType` push；不推荐作为 Mongo 优先应用的唯一模式。
+8. Mongo 类型实现依赖核心 **阶段 3 DoD**；包选项名 **`replaceDefaultImplementation`**。  
+9. 仅追加类型实现、不改默认：`registerType` push；Mongo 优先应用应开 `replaceDefaultImplementation`。
 
 ---
 
@@ -448,7 +449,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | --- | --- |
 | 路径别名 / jest 迁包后挂 | 阶段 A 先只迁 core，测试全绿再开 B |
 | 扩展 import 不到 `defineType` | B.1 导出审计 |
-| `Decimal128` / `UUID` 双实现混淆 | 文档写清默认 parse vs stringify 鸭子；测试 M5 |
+| `Decimal128` / `UUID` 双实现混淆 | 文档写清默认 parse vs 追加类型实现后的 stringify；测试 M5 |
 | BSON Timestamp 与核心 Timestamp | 禁止同名覆盖；P2 另名 |
 | 发布配错 `files` / 主入口 | 每包独立 `files: ["lib"]` + 本地 pack 检查 |
 | Yarn Classic workspaces 与 peer | 用 devDependency 链到 workspace 协议 `tason@*` 联调 |
@@ -471,25 +472,25 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 - [x] A.7 AGENTS / README
 - [x] A.8 发布路径备忘（`packages/<name>` 下 publish；见 AGENTS §2）
 
-### 阶段 A′ — 核心 3a 默认实现
+### 阶段 A′ — 核心阶段 3
 
-- [ ] A′.1 `setDefaultType` / `asDefault`
-- [ ] A′.2 测试 D0–D0d + clone
-- [ ] A′.3 导出与文档勾选
+- [ ] A′.1 锁定 API 实现（见 phase-3）
+- [ ] A′.2 测试 D0–D7 + clone + 冒烟
+- [ ] A′.3 导出与 phase-3 DoD 勾选
 
 ### 阶段 B — 扩展骨架
 
 - [ ] B.1 核心导出审计（实现 `registerMongoDBTypes` 前再做）
 - [x] B.2 `tason-mongodb` 包脚手架（package / tsconfig / jest / 空 `src/index.ts`）
-- [ ] B.3 `registerMongoDBTypes` + `defaultImplementations` 选项（**未实现**，后续细化）
+- [ ] B.3 `registerMongoDBTypes` + `replaceDefaultImplementation` 选项（**未实现**，后续细化）
 - [x] B.4 包 README（脚手架说明 + 计划 API）
 - [ ] B.5 联调编译（依赖实现后补）
 
 ### 阶段 C — P0
 
 - [ ] C.1 ObjectId
-- [ ] C.2 Long → Int64 鸭子 + 可选默认
-- [ ] C.3 Decimal128 鸭子 + 可选默认
+- [ ] C.2 Long → Int64 追加类型实现 + 可选 `replaceDefaultImplementation`
+- [ ] C.3 Decimal128 追加类型实现 + 可选默认
 - [ ] C.4 type-system 交叉链接
 - [ ] C.5 根 README 示例
 
@@ -504,9 +505,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ## 11. 建议实施顺序（一句话）
 
-**先 A 搬核心 → A′ 核心 3a 默认实现 → B 扩展空壳 → C ObjectId/Long/Decimal128（含 defaultImplementations）→ D 发布与 Binary。**
-
-阶段 **3b**（`parseAs`）可与 C/D **并行或后置**；Mongo「默认 Long」只硬依赖 **3a**，不依赖完整阶段 3。
+**先 A 搬核心（done）→ 核心阶段 3 → B 扩展空壳（脚手架 done）→ C ObjectId/Long/Decimal128（`replaceDefaultImplementation`）→ D 发布与 Binary。**
 
 ---
 

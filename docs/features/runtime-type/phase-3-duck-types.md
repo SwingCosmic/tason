@@ -1,206 +1,248 @@
-# 阶段 3：鸭子类型、默认实现与多态反序列化
+# 阶段 3：鸭子类型、默认实现与指定类型反序列化
 
-> **状态：待办（3a 可先于 monorepo Mongo 落地）**  
+> **状态：待办 · API 已锁定（Mongo 类型包之前整阶段做完）**  
 > 进度入口：[implementation-plan.md](./implementation-plan.md) · 设计：[runtime-type-design.md](./runtime-type-design.md)  
 > 用语：[README 概念对照](./README.md#概念对照读本文档前)  
-> 依赖：[阶段 2](./phase-2-class-metadata-schema.md)（建议 2.2 完成后；`parseAs` 可与 2.2 末期并行，但 D4 依赖 schema）  
-> 牵动：[monorepo / tason-mongodb](../monorepo/implementation-plan.md)（需要 **3a 默认实现**，不阻塞等完整 3b）
+> 依赖：阶段 2.2 **已完成**  
+> 牵动：[monorepo / tason-mongodb](../monorepo/implementation-plan.md)  
+> 用语约定（鸭子类型 / 代码标识符）：见仓库根 [AGENTS.md §7.1](../../../AGENTS.md)
 
 ---
 
 ## 3.0 目标
 
-同名多实现注册、**指定默认实现**、序列化选型、反序列化在期望类型下选型；与阶段 2 的 schema 层**正交**。
+同一 TypeName 下**支持鸭子类型注册**（多种 JS 实现）、**可改默认实现**、序列化按实例选型、反序列化按期望类型选型；与阶段 2 schema **正交**。
 
-对照 C# Registry 多实现列表；JS 补齐默认实现 API + `registerDuckType` / `parseAs` 与文档对齐。
-
-### 为何拆成 3a / 3b
-
-| 子阶段 | 解决什么 | 谁依赖 |
-| --- | --- | --- |
-| **3a 默认实现** | parse 无 expected 时用哪一个 `TASONTypeInfo`（今天死写 `types[0]`） | **Mongo 扩展**把 `bson.Long` 设为 `Int64` 默认，避免「parse→核心包装→再塞进驱动」的反复转换 |
-| **3b 调用级选型** | `parseAs`、鸭子注册语义打磨、discriminator 对齐 | 单次期望类型 / 文档完整多态，**不**挡 Mongo P0 |
-
-**结论：** 不必整包提前做完阶段 3；**必须**把 3a 从「登记顺序碰巧变成 types[0]」升级为**显式 API**，并在 Mongo 包之前或同步完成。`parseAs`（3b）可仍按原排期。
+**本阶段在 `tason-mongodb` P0 之前全部落地**（改动集中在 Registry + Serializer / Visitor）。
 
 ---
 
-## 3.0a 问题：「蜜汁」反复序列化
+## 3.0.1 C# 对照（事实，非目标 API 照搬）
 
-当前行为（代码已具备多实现数组，但默认固定）：
+参考：`TasonTypeRegistry.cs`、`TasonSerializer.cs`、`TasonVisitor_Typed.cs`；C# 内置另有「次要实现」表在默认 Types 之后再 `RegisterType`（对方属性名可含 Duck，**不**迁入 JS 标识符）。
 
-| 方向 | 行为 |
-| --- | --- |
-| **stringify** | `tryGetTypeInfo` / `getType(name, obj)` 按 `instanceof` 命中 → 已注册的鸭子（如 Long）能写出 `Int64("…")` |
-| **parse** | Visitor → `getDefaultType` = **`types[0]`**（核心注册顺序下的官方包装） |
+| 能力 | C# 现状 | JS 现状 | 本阶段动作 |
+| --- | --- | --- | --- |
+| 多实现列表 | `RegisterType` **总是 Add（push）** | 同：`types[]` + push | 保持 |
+| 默认实现 | `GetDefaultType` = **列表第一项**；**无** `SetDefaultType` | 同：`types[0]`，不可改 | **补** `asDefault` / `setDefaultType` |
+| 次要实现后注册 | 默认 Types 之后再 Register | 扩展靠后 `registerType` | 文档约定 |
+| 扩展包 | STJ 等对同名再 push，**不**抢默认 | 计划同构 | 仅「追加类型实现」时同 C# |
+| 序列化选型 | `TryGetTypeInfo` / `GetType(name, obj)` | `tryGetTypeInfo` / `getType`：`instanceof` | 保持；补测 |
+| 自动类型反序列化 | `Deserialize(text)` → `GetDefaultType` | `parse` → `getDefaultType` | 保持 |
+| **指定类型**反序列化 | `Deserialize<T>`：TypeInstance 走 `GetType(name, implType)` | **无** | **`parseAs`**（子集） |
+| 按 Type 取实现 | `GetType(name, Type)` | 仅 `getType(name, obj)` | 补 `getTypeInfoByCtor` |
 
-因此仅 `registerType("Int64", longInfo)`（push）时：
+**关键推论：**
 
-1. 文本 `Int64("1")` → 得到 **核心** `Int64`，不是 `bson.Long`  
-2. 业务/Mongo 驱动侧要 `Long` → 手动转换  
-3. 再 stringify：若已是 Long 则鸭子命中；若仍是核心包装则另一路径  
-4. 多轮 parse/stringify/写库之间 **运行时类型抖动** → 边界比较、schema `instance(Long)`、驱动 API 易踩坑  
-
-**配置「某 TypeName 的默认实现 = Mongo 类型」** 后：无 expected 的 parse 直接产出 Long，整条链路 RuntimeType 稳定。这与「追加鸭子但不改默认」是**互补**能力，不是 `parseAs` 的替代：
-
-| 能力 | 作用域 | 典型用途 |
-| --- | --- | --- |
-| **setDefaultType / 注册为默认** | Registry 生命周期内该 TypeName | Mongo 优先应用：全程 Long |
-| **parseAs(ctor \| name)** | **单次**调用 | 偶发要 FakeLong / 测试 / 非全局偏好 |
-| **仅鸭子 push** | stringify 能认出实例；parse 仍旧默认 | 库内已有 Long 实例、文本侧仍用官方包装 |
+1. C# 默认永远是 **先注册** 的实现；无「提升为默认」API。  
+2. JS 核心先注册 builtin，扩展后 push **改不了** parse 默认 → 必须有 `asDefault` / `setDefaultType`（相对 C# 的有意增强）。  
+3. C# 指定类型模式靠 `Deserialize<T>`；JS 用 `parseAs` 对齐有限子集（**多实现解析**时按期望 ctor 选型）。  
+4. `parseAs` **不**迁 C# 集合/接口全树。
 
 ---
 
-## 3.1 API
+## 3.0.2 与 Mongo 注册的咬合
 
-### 3a — 默认实现（优先落地）
-
-```ts
-// 将已注册实现提升为 types 列表的默认（getDefaultType）；或传入 typeInfo 先注册再设默认
-setDefaultType<T>(name: string, typeInfo: TASONTypeInfo<T>): void
-// 或按 ctor 查找同名 entry 内实现后提升
-setDefaultTypeByCtor(name: string, ctor: Constructor<unknown>): void
-
-// 可选糖：register 时声明
-registerType(name, typeInfo, metadata?, options?: { asDefault?: boolean })
-// asDefault: true → unshift / 移到 [0]；false/缺省 → 现有 push（鸭子、不改默认）
-```
-
-约束（固定决策候选）：
-
-- `getDefaultType(name)` **唯一**语义来源；Visitor/`createInstance(string)` 只认它。  
-- **禁止**依赖「谁先 register」的隐式顺序作为公开约定（builtin 构造顺序除外；扩展包必须显式 `asDefault` 或 `setDefaultType`）。  
-- `clone()` 必须**拷贝**默认选择（整表 types 顺序或 defaultIndex）。  
-- 设为默认的 typeInfo 必须属于该 TypeName 的 entry（可先 push 再提升）。
-
-Mongo 扩展侧（示意，见 monorepo plan）：
+| 注册意图 | 核心调用 | parse `Int64("1")` | stringify(Long) |
+| --- | --- | --- | --- |
+| 追加类型实现（不改默认） | `registerType("Int64", longInfo)` | 核心包装 | `Int64("…")` |
+| 替换默认实现 | `registerType(..., { asDefault: true })` 或 `setDefaultType` | `bson.Long` | 同左 |
+| 新 TypeName | `registerType("ObjectId", oidInfo)` | `ObjectId` | `ObjectId("…")` |
 
 ```ts
 registerMongoDBTypes(registry, {
-  defaultImplementations: {
-    Int64: "bson-long",       // 或 true / "prefer"
-    Decimal128: "bson-decimal128",
+  replaceDefaultImplementation?: boolean | {
+    Int64?: boolean;
+    Decimal128?: boolean;
   },
+  include?: MongoTypeName[],
 });
-// 内部：registerType(..., { asDefault: true }) 或 setDefaultType
+// 内部只调核心 registerType / asDefault；不 fork Registry
+// 缺省：对 Int64/Decimal128 等只追加类型实现；
+// replaceDefaultImplementation: true 时 asDefault
 ```
 
-### 3b — 鸭子注册名与调用级 parse
-
-```ts
-// 追加实现；默认不替换 getDefaultType（与 asDefault: false 同义）
-registerDuckType(name: string, typeInfo: TASONTypeInfo<T>): void
-
-// 期望类型引导：ctor | 已注册类型名 | 其它描述（实现时定）
-parseAs<T>(expected: Constructor<T> | string, text: string): T
-```
-
-既有能力复用：
-
-- `types: TASONTypeInfo[]` 已是数组（`registerType` push）  
-- `getType(name, obj)` 已按 `instanceof` 找实现  
-- `getDefaultType` = 默认实现（3a 后：**可配置**，不再「永远是注册顺序第一个且不可改」）  
-- `TASONTypeDiscriminator` 已存在——3b 对齐文档并补测  
+Mongo 选项统一为 **`replaceDefaultImplementation`**（旧稿 `duckOntoBuiltins` / `defaultImplementations` 废止）。  
+「是否挂到内置 TypeName」由类型矩阵与 `include` 决定（Long → `Int64`），**不再**单独布尔开关。
 
 ---
 
-## 3.2 行为
+## 3.0a 问题：多轮 RuntimeType 抖动
+
+| 方向 | 行为 |
+| --- | --- |
+| **stringify** | `instanceof` 命中已注册实现 → 写出对应 TypeName |
+| **parse** | `getDefaultType` = `types[0]`（核心官方包装） |
+
+仅 **追加类型实现**、未改默认时：parse 得核心包装 → 业务要 BSON 类再转换 → 抖动。
+
+| 能力 | 作用域 | 典型用途 |
+| --- | --- | --- |
+| **`asDefault` / `setDefaultType`** | Registry 生命周期 | Mongo 优先：全程 Long |
+| **`parseAs(ctor)`** | 单次调用 | 测试 / 偶发选型 / **多实现解析** |
+| **仅追加类型实现** | stringify 认实例；parse 仍旧默认 | 文本侧仍用官方包装 |
+
+---
+
+## 3.1 锁定 API 形状
+
+### 原则
+
+- **支持鸭子类型注册** = 对已有 TypeName 再 `registerType`（push），**不为**此另发明公开方法名。  
+- **默认 = `types[0]`**；`setDefaultType` / `asDefault` 用 **重排** 实现。  
+- 签名兼容：`registerType(name, typeInfo, metadata?)` 仍合法。
+
+### Registry
+
+```ts
+type RegisterTypeOptions = {
+  /** true：该实现成为 getDefaultType；false/缺省：push（追加类型实现），不改当前默认 */
+  asDefault?: boolean;
+};
+
+registerType<T>(
+  name: string,
+  typeInfo: TASONTypeInfo<T>,
+  metadata?: TasonClassMetadata,
+  options?: RegisterTypeOptions,
+): void;
+
+/** 已注册则提升为默认；未注册则先注册再置顶 */
+setDefaultType<T>(name: string, typeInfo: TASONTypeInfo<T>): void;
+
+/** 按 ctor 在该 TypeName 下查找并 setDefault；找不到抛错 */
+setDefaultTypeByCtor(
+  name: string,
+  ctor: abstract new (...args: any[]) => any,
+): void;
+
+getDefaultType<T>(name: string): TASONTypeInfo<T> | undefined;
+getType<T>(name: string, obj: T): TASONTypeInfo<T> | undefined;
+
+/** 按期望构造函数选实现（对齐 C# GetType(name, Type)；多实现解析用） */
+getTypeInfoByCtor<T>(
+  name: string,
+  ctor: abstract new (...args: any[]) => any,
+): TASONTypeInfo<T> | undefined;
+```
+
+### Serializer
+
+```ts
+parse<T = any>(text: string): T;
+
+/**
+ * 指定类型反序列化（对齐 C# Deserialize&lt;T&gt; 子集；多实现解析）。
+ * expected: 构造函数，或已注册 TypeName 字符串。
+ */
+parseAs<T>(
+  expected: (abstract new (...args: any[]) => T) | string,
+  text: string,
+): T;
+```
+
+### 固定决策
+
+1. 默认实现 = **`types[0]`**；通过重排维护。  
+2. `getDefaultType` 是自动 `parse` 路径唯一来源。  
+3. `clone()` 拷贝各 entry 的 `types` 顺序。  
+4. `setDefaultType`：不在列表则先注册再置顶；`setDefaultTypeByCtor` 必须已存在。  
+5. 公开 API：`registerType` + `setDefaultType*` + `getTypeInfoByCtor` + `parseAs`；**不为「追加类型实现」另设公开方法**。  
+6. `parseAs` 首版：TypeInstance 选型 + schema 共存；不做 C# 级集合/接口全树。  
+7. Mongo：`replaceDefaultImplementation` → 内部 `asDefault`。  
+
+---
+
+## 3.2 行为矩阵
 
 | 场景 | 行为 |
 | --- | --- |
-| parse 无 expected | 用 `getDefaultType`（**3a 后可被 Mongo 设为 Long**） |
-| 仅 duck push、未改默认 | parse 仍官方 Int64；stringify(Long) → `Int64("…")` |
-| `setDefaultType("Int64", longInfo)` 后 parse | 得到 Long；stringify 仍 `Int64("…")` |
-| parseAs(User, text) | 解析后若为 object 类型，优先匹配 User 可赋值实现；数值鸭子按 ctor 选 |
-| parseAs(Long, `Int64("1")`) | 单次得到 Long，**不**要求已设全局默认 |
-| FakeLong 仅鸭子 | stringify → `Int64("…")`；parse 默认仍官方，除非默认已切或 parseAs |
-| 多态子类 | 原型链 / discriminator；首版不要求接口注册表 |
+| parse 无 expected | `getDefaultType` |
+| 仅追加类型实现、未改默认 | parse 仍官方；stringify(Long) → `Int64("…")` |
+| `asDefault` / `setDefaultType` 后 parse | 新默认 ctor；TypeName 文本不变 |
+| `parseAs(Long, \`Int64("1")\`)` | 单次 Long；全局默认不变 |
+| `parseAs(User, text)` | ObjectType 选型 + 可选 schema |
+| discriminator | 既有路径补测 |
 
 ---
 
-## 3.3 与 schema 的关系
+## 3.3 与 schema
 
-- Schema 描述 **RuntimeType**（`bigint` / `instance(Long)`），不描述「用哪个鸭子类」作全局默认  
-- 全局默认实现影响 **无契约 parse 叶子** 与 TypeInstance 构造；有 schema 时仍按契约收 RuntimeType（阶段 2）  
-- 若契约写 `instance(bson.Long)` 而默认仍是核心 Int64，会在映射层失败或需二次转换 → **Mongo + schema 场景更应开 3a 默认**  
-- `parseAs` 可同时：按 Schema 收值 + 按 ctor 选实现  
+- Schema 描述 RuntimeType，不描述全局默认实现类。  
+- 无契约叶子：受默认实现影响。  
+- 有契约：仍按阶段 2；`instance(Long)` 场景宜开 `replaceDefaultImplementation`。  
+- `parseAs`：先按期望 ctor 选 TypeInfo，再套 schema（顺序测 D4）。
 
 ---
 
-## 3.4 任务清单
+## 3.4 实现落点
 
-### 3a（Mongo / 扩展包前置）
+| 项 | 路径 |
+| --- | --- |
+| Registry API | `packages/tason/src/TASONTypeRegistry.ts` |
+| `parseAs` | `TASONSerializer.ts` + Visitor 带 expected 入口 |
+| 导出 | `packages/tason/src/index.ts` |
+| 测试 | `packages/tason/test/multi-implementation.test.ts` |
+
+Visitor：自动路径不变；`parseAs` 传入 expected，TypeInstance 用 `getTypeInfoByCtor`，无匹配则 **抛**。
+
+---
+
+## 3.5 任务清单
 
 | # | 任务 |
 | --- | --- |
-| 3a.1 | `setDefaultType` / `setDefaultTypeByCtor`（或 `registerType(..., { asDefault })`）实现与单测 |
-| 3a.2 | 确认 Visitor / `createInstance(name)` / `createInstanceByCtor` 路径均走 `getDefaultType` |
-| 3a.3 | `clone()` 保留默认实现顺序 |
-| 3a.4 | 文档：默认实现 vs 鸭子 vs parseAs 对照表（本节 + monorepo plan 交叉链接） |
-| 3a.5 | 示例：Int64 默认切到 FakeLong / 模拟 Long 后 round-trip 类型稳定 |
+| 3.1 | `asDefault` / `setDefaultType` / `setDefaultTypeByCtor` |
+| 3.2 | `getTypeInfoByCtor`；Visitor / `createInstance(string)` 走 `getDefaultType` |
+| 3.3 | `clone()` 顺序 |
+| 3.4 | `parseAs` |
+| 3.5 | 测试 D0–D7；builtin 冒烟 |
+| 3.6 | 导出；DoD 勾选；monorepo 交叉同步 |
+| 3.7 | 用户向短链（type-system / README，可极短） |
 
-### 3b（完整鸭子 / 多态，可后置）
+---
 
-| # | 任务 |
+## 3.6 测试矩阵
+
+文件：`test/multi-implementation.test.ts`。
+
+| 编号 | 场景 |
 | --- | --- |
-| 3b.1 | `registerDuckType` 语义明确（alias of push + 文档；或校验 name 已存在） |
-| 3b.2 | `parseAs` 实现：parse 管线 + expected 选型 |
-| 3b.3 | Visitor/createInstance：支持指定 typeInfo 而非仅 default（parseAs 路径） |
-| 3b.4 | 与 discriminator 行为对齐测试 |
-| 3b.5 | 示例：默认官方 + 鸭子 + parseAs(FakeLong) |
-| 3b.6 | 文档与 CHANGELOG |
+| D0 | `setDefaultType` / `asDefault` 后 parse 得新默认 |
+| D0b | 仅追加类型实现：parse 仍原默认 |
+| D0c | clone 后默认一致 |
+| D0d | 默认切换后多轮 ser/de 类型稳定 |
+| D1 | 追加类型实现后 stringify 实例 → 正确 TypeName |
+| D2 | 未改默认时 builtin 无回归 |
+| D3 | `parseAs(FakeLong, …)`；全局默认未变 |
+| D4 | `parseAs(User)` + schema |
+| D5 | discriminator / 子类一轮 |
+| D6 | `getTypeInfoByCtor`；无匹配 parseAs 抛错 |
+| D7 | `setDefaultType` 未注册 typeInfo → 先注册再置顶 |
 
 ---
 
-## 3.5 测试矩阵
+## 3.7 DoD
 
-新开 `test/duck*.test.ts`（不混入阶段 1/2 套件）。可先只落地 3a 相关用例。
+- [ ] `asDefault` / `setDefaultType*` 可用  
+- [ ] `parseAs` + `getTypeInfoByCtor` 可用；自动 parse 无回归  
+- [ ] clone；D0–D7  
+- [ ] 与 monorepo `replaceDefaultImplementation` 一致  
 
-| 编号 | 场景 | 子阶段 |
-| --- | --- | --- |
-| D0 | `setDefaultType` 后 parse 得到新默认 ctor 实例 | **3a** |
-| D0b | 未设默认时仅 duck：parse 仍 types 原默认 | **3a** |
-| D0c | clone 后默认实现一致 | **3a** |
-| D0d | 默认=Long 时 stringify/parse 多轮 RuntimeType 不变 | **3a** |
-| D1 | registerDuckType 后 stringify 鸭子实例得到正确 TypeName | 3b/已有能力 |
-| D2 | parse 默认在未 setDefault 时不破坏 builtin | 3a |
-| D3 | parseAs(FakeLong, `Int64("1")`) 得到 FakeLong | 3b |
-| D4 | parseAs(User) + schema 契约收值同时生效 | 3b |
-| D5 | 子类 / discriminator 多态一轮 | 3b |
+- [ ] Mongo 可在此 API 上实现注册  
 
 ---
 
-## 3.6 DoD
-
-### 3a DoD（可单独勾选）
-
-- [ ] 公开 API 可指定 TypeName 的默认 `TASONTypeInfo`  
-- [ ] parse 无 expected 时使用该默认；builtin 默认行为无回归  
-- [ ] clone 保持默认；测试 D0–D0d / D2  
-- [ ] monorepo Mongo 可声明 `defaultImplementations`  
-
-### 3b DoD
-
-- [ ] `registerDuckType` + `parseAs` 公开可用  
-- [ ] 与 schema 数值路径无冲突  
-- [ ] 文档示例完整（含「全局默认 vs parseAs」）  
-
----
-
-## 3.7 与 monorepo 的排期关系
+## 3.8 排期
 
 ```
-Phase 2.2 (done) ──► 3a 默认实现 ──► tason-mongodb P0（ObjectId + Long/Decimal 作可选默认）
-                         │
-                         └──► 3b parseAs / 鸭子打磨（并行或后置，不挡 Mongo 首发）
+Phase 2.2 (done) ──► Phase 3（本分册整包）──► tason-mongodb 类型实现
 ```
-
-**不需要**为了「默认用 Long」提前完成整个阶段 3；**需要**调整阶段 3 范围，把 **3a 提前**（相对原「整阶段一起做」）。
 
 ---
 
 ## 相关链接
 
-- 上一阶段：[phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md)  
-- 总进度：[implementation-plan.md](./implementation-plan.md)  
-- Mongo / monorepo：[../monorepo/implementation-plan.md](../monorepo/implementation-plan.md)  
+- [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md)  
+- [implementation-plan.md](./implementation-plan.md)  
+- [../monorepo/implementation-plan.md](../monorepo/implementation-plan.md)  

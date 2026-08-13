@@ -37,7 +37,7 @@
 | 层 | 负责 | 不负责 |
 | --- | --- | --- |
 | **TASON 中间层** | 所有 **ObjectType / TypeInstance 节点** 的标记写入与读回还原；开放嵌套图 walk | 连库、Mongoose 插件、BSON 编解码细节 |
-| **`tason-mongodb`** | Registry 上 **BSON 标量** TypeInfo（ObjectId、Long 鸭子等） | **禁止** 对象多态、禁止递归打标、禁止 `toDocument` |
+| **`tason-mongodb`** | Registry 上 **BSON 标量** TypeInfo（ObjectId、Long 的追加类型实现等） | **禁止** 对象多态、禁止递归打标、禁止 `toDocument` |
 | **TASON 文本** `parse`/`stringify` | 文本协议 TypeName | 与中间层 **并行**；进 Mongo 默认走中间层而非整段 stringify |
 | **ODM（可选）** | 用户若另用 Mongoose 顶层 discriminator | 与中间层可并存，**不依赖** |
 
@@ -168,7 +168,7 @@ export function fromDocument<T = unknown>(
 **依赖 Registry：**
 
 - 写出：`tryGetTypeInfo` → TypeName + kind  
-- 读入：`getDefaultType(name)` / 3a 默认实现 + `createInstance`  
+- 读入：`getDefaultType(name)` / 默认实现 + `createInstance`  
 - 字段：对 object 参数递归 `fromDocument`，再交给 object deserialize / ctor assign
 
 **循环引用：** 检测后 `throw`（与 Generator 一致）。
@@ -182,7 +182,7 @@ export function fromDocument<T = unknown>(
 | 输入/输出 | 任意 JS 值图 / plain 图 | TypeInfo 注册到 Registry |
 | `_t` | **写入与解释** | 不碰 |
 | ObjectId | 当作已注册 scalar：**透传实例** | 提供 TypeInfo，使 `instanceof ObjectId` 能 stringify 到 TASON 文本 |
-| Long 作 Int64 默认 | 不实现 | 3a + 注册 |
+| Long 作 Int64 默认 | 不实现 | 阶段 3 + `replaceDefaultImplementation` |
 | `insertOne` | 不调用 | 不调用 |
 
 **组合用法（用户代码）：**
@@ -192,7 +192,7 @@ import TASON from "tason";
 import { registerMongoDBTypes } from "tason-mongodb";
 import { toDocument, fromDocument } from "tason"; // 或 tason/document
 
-registerMongoDBTypes(TASON.registry, { defaultImplementations: { Int64: true } });
+registerMongoDBTypes(TASON.registry, { replaceDefaultImplementation: { Int64: true } });
 
 const plain = toDocument(domainGraph, TASON.registry);
 await coll.insertOne(plain);
@@ -224,7 +224,7 @@ ODM 仍可作为 **另一条** 用户路径；**本仓库官方路径** 定为�
 | `_t` 与业务字段冲突 | 默认 throw；文档禁止业务使用 |
 | 与 Mongoose `__t` 同库混用 | 可配置 key；不自动双写 |
 | 旧数据无标记 | `expected` 或 plain；迁移脚本可选 |
-| 只 `registerType` 未 3a | scalar 默认仍 core；与 monorepo 正交 |
+| 只 `registerType` 未替换默认 | scalar 默认仍 core；与 monorepo 正交 |
 | 把中间层误放进 tason-mongodb | **CI/评审拒绝**；职责表见 §0 |
 
 ---

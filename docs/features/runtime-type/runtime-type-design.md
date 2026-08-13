@@ -200,10 +200,13 @@ interface RuntimeSchemaAdapter<S = unknown> {
 
 ```ts
 registerType("Int64", defaultInfo);
-registerDuckType("Int64", bsonLongInfo);
+registerType("Int64", bsonLongInfo); // 追加类型实现：push，不改默认
+registerType("Int64", bsonLongInfo, undefined, { asDefault: true }); // 或 setDefaultType
+parseAs(Long, `Int64("1")`); // 多实现解析
+// Mongo 包选项：replaceDefaultImplementation
 ```
 
-同一 TypeName 多 RuntimeType/实现（鸭子）；与 Schema 层正交。`parseAs` 可按 ctor/Schema 期望选型。
+同一 TypeName 多 RuntimeType/实现（鸭子类型）；与 Schema 层正交。锁定细节见 [phase-3](./phase-3-duck-types.md)。
 
 ---
 
@@ -231,7 +234,7 @@ stringify(user)
 | **1** | Number Handling 双选项；值级拆箱/写出；部分选项暂降级 | [phase-1](./phase-1-number-handling.md) **done** |
 | **2.1** | Valibot 导出 + adapter；metadata；简单 object 叶子 | [phase-2](./phase-2-class-metadata-schema.md) **done** |
 | **2.2** | 全部数值 × Schema × 数组/嵌套；Handling 完整语义 | 同上 |
-| **3** | `registerDuckType`、`parseAs`、多态选型 | [phase-3](./phase-3-duck-types.md) |
+| **3** | `asDefault`/`setDefaultType`、`parseAs`、`getTypeInfoByCtor` | [phase-3](./phase-3-duck-types.md) |
 
 ---
 

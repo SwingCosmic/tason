@@ -14,4 +14,4 @@
 
 **状态：** 阶段 A（核心迁入 monorepo）+ 阶段 B 脚手架（`tason-mongodb` 空壳 + `bson` peer）已落地；**类型实现与 `registerMongoDBTypes` 未开工**，后续步骤需再细化。
 
-**相关：** [runtime-type](../runtime-type/)（鸭子类型阶段 3 与「Int64 → MongoDB Long」示例正交）；[polymorphic-persistence](../polymorphic-persistence/)（`_t` 中间层，与 BSON 包分列）；用户文档待扩展包实现后再补。
+**相关：** [runtime-type](../runtime-type/)（阶段 3 鸭子类型 / `replaceDefaultImplementation`）；[polymorphic-persistence](../polymorphic-persistence/)（`_t` 中间层，与 BSON 包分列）；用户文档待扩展包实现后再补。

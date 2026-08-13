@@ -17,5 +17,5 @@
 | 主题 | 文档 | 关系 |
 | --- | --- | --- |
 | monorepo + ObjectId/Long… | [../monorepo/](../monorepo/) | **只**标量；**禁止**把本中间层塞进该包 |
-| 鸭子 / 默认实现 | [../runtime-type/phase-3-duck-types.md](../runtime-type/phase-3-duck-types.md) | hydrate 时用 `getDefaultType` / 3a 默认实现 |
+| 鸭子类型 / 默认实现 | [../runtime-type/phase-3-duck-types.md](../runtime-type/phase-3-duck-types.md) | hydrate 时用 `getDefaultType` / 默认实现 |
 | ODM discriminator | design §1.5–1.6 | 可并存；本中间层面向 **开放嵌套图** 与 **纯驱动** |

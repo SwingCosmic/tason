@@ -7,16 +7,16 @@ JS 选项字符串一律 **kebab-case**。
 
 本文是**本 feature 的总进度入口**；各阶段细节、任务清单与测试矩阵见分册。
 
-**用语：** 见 [README 概念对照](./README.md#概念对照读本文档前)（RuntimeType / Schema / TypeName / TypeInstance / Number Handling 等；此处不重复）。
+**用语：** 见 [README 概念对照](./README.md#概念对照读本文档前)；协作约定见仓库根 [AGENTS.md](../../../AGENTS.md)（含鸭子类型 / 代码标识符）。
 
 ---
 
 ## 进度总览
 
 ```
-Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3a ──► Phase 3b
- 选项+值级数值   目录+Valibot+叶子    结构递归+OTP     默认实现      parseAs/鸭子打磨
-   [done]          [done]            [done]          (Mongo 前置)    (可后置)
+Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3（默认实现 + parseAs）──► tason-mongodb
+ 选项+值级数值   目录+Valibot+叶子    结构递归+OTP     Mongo 前整包 · API 已锁定
+   [done]          [done]            [done]          [todo]
 ```
 
 | 阶段 | 名称 | 状态 | 分册 |
@@ -24,8 +24,7 @@ Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3a ──► Pha
 | **1** | 数值双选项（无字段上下文） | **已完成** | [phase-1-number-handling.md](./phase-1-number-handling.md) |
 | **2.1** | schema 定义与简单应用 | **已完成** | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) |
 | **2.2** | 结构递归 + Handling 上下文 + 全数值契约 | **已完成** | 同上 |
-| **3a** | 指定 TypeName **默认实现**（`setDefaultType` / `asDefault`） | 待办 · **Mongo 前置** | [phase-3-duck-types.md](./phase-3-duck-types.md) |
-| **3b** | 鸭子注册语义 + `parseAs` 多态 | 待办 · 可后置 | 同上 |
+| **3** | 默认实现（`asDefault` / `setDefaultType`）+ `parseAs` / `getTypeInfoByCtor` | 待办 · **Mongo 前整包** | [phase-3-duck-types.md](./phase-3-duck-types.md) |
 
 ---
 
@@ -33,13 +32,13 @@ Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3a ──► Pha
 
 1. 数值：序列化 / 反序列化 Number Handling 拆分；值级拆箱/写出（**阶段 1 ✓**）。  
 2. ClassMetadata = 现成库 Schema + adapter 薄映射（RuntimeType ↔ TypeInstance/字面量）（**阶段 2**）。  
-3. 同名多实现：**默认实现可配置**（**3a**）+ 鸭子 / `parseAs` 调用级选型（**3b**）。
+3. 支持鸭子类型注册 + **默认实现可配置** + **`parseAs` 多实现解析**（阶段 3，Mongo 前做完）。
 
-**范围内：** 双 Handling、`RuntimeSchemaAdapter` + 可注册 Valibot 实现（默认不启用）、RuntimeType↔TypeName/字面量映射、`setDefaultType` / `registerType(..., { asDefault })`、`registerDuckType` / `parseAs`、目录整理（`TASONTypeInfo` 顶层、`metadata/`）。
+**范围内：** 双 Handling、`RuntimeSchemaAdapter` + 可注册 Valibot 实现（默认不启用）、RuntimeType↔TypeName/字面量映射、`setDefaultType` / `registerType(..., { asDefault })`、`getTypeInfoByCtor` / `parseAs`、目录整理（`TASONTypeInfo` 顶层、`metadata/`）。
 
-**范围外：** 自研 TypeName 挂载树作主 API、ExtraMember、命名约定、多库全适配、Zod 强绑 core、bson 实现本身（在 [monorepo / tason-mongodb](../monorepo/)）、Writer/HTTP、枚举元数据。
+**范围外：** 自研 TypeName 挂载树作主 API、ExtraMember、命名约定、多库全适配、Zod 强绑 core、bson 实现本身（在 [monorepo / tason-mongodb](../monorepo/)）、Writer/HTTP、枚举元数据、C# 级 typed 集合/接口全树。
 
-**与 Mongo 扩展：** 用户可将 `bson.Long` 设为 TypeName `Int64` 的默认实现，避免反复 ser/de 时 RuntimeType 在核心包装与 BSON 类之间抖动。详见 phase-3 **3a**；**不要求** 3b 完成后再做 `tason-mongodb`。
+**与 Mongo 扩展：** `bson.Long` 等经 `asDefault` / 包选项 `replaceDefaultImplementation` 成为 `Int64` 默认；见 [phase-3](./phase-3-duck-types.md)。**阶段 3 DoD 完成后再开** 类型实现。
 
 ---
 
@@ -57,13 +56,13 @@ setSchemaAdapter(adapter | null): void                   // 默认无实现
 getSchemaAdapter(): RuntimeSchemaAdapter | undefined
 // 导出 createValibotAdapter() → setSchemaAdapter(createValibotAdapter())
 
-// 默认实现（阶段 3a · Mongo 等扩展前置）
+// 默认实现 + 期望类型（阶段 3 · Mongo 前）
+registerType(name, typeInfo, metadata?, { asDefault?: boolean })
 setDefaultType(name, typeInfo): void
-// registerType(name, typeInfo, metadata?, { asDefault?: boolean })
-
-// 鸭子 / 期望类型（阶段 3b）
-registerDuckType(name, typeInfo): void
-parseAs(expected, text): T
+setDefaultTypeByCtor(name, ctor): void
+getTypeInfoByCtor(name, ctor): TASONTypeInfo | undefined
+parseAs(expected: Constructor | string, text): T
+// 再 registerType 同名 = 追加类型实现（不改默认）；Mongo: replaceDefaultImplementation
 ```
 
 | Handling（摘要） | 序列化 | 反序列化 |
@@ -73,7 +72,7 @@ parseAs(expected, text): T
 | ObjectType 内（无契约 fallback） | ser：`object-type-property` ≈ all | de：`object-fallback-all` ≈ all |
 | 强制裸写 | `none`（仅 serialize） | 无 `none` |
 
-交叉映射默认路径：`bigint`↔Int64/BigInt（及字面量，随 Handling）；`number`→裸字面量（**不**默认 Int32）；decimal→Decimal128。其它路径用 override/brand/`all`/鸭子。两套类型关系见 [README](./README.md#概念对照读本文档前)。
+交叉映射默认路径：`bigint`↔Int64/BigInt（及字面量，随 Handling）；`number`→裸字面量（**不**默认 Int32）；decimal→Decimal128。其它路径用 override/brand/`all`/追加类型实现。两套类型关系见 [README](./README.md#概念对照读本文档前)。
 
 ---
 
@@ -88,7 +87,8 @@ parseAs(expected, text): T
 | 反射 `PropertyType` | schema + `RuntimeSchemaAdapter` | 无 CLR 反射 |
 | `BuiltinNumberHandling` | 读写双选项 | 阶段 1 ✓ |
 | `RegisterType(..., metadata)` | 同 + `getClassMetadata` | 阶段 2 |
-| 多实现列表 | `registerDuckType` / `parseAs` | 阶段 3 |
+| 多实现列表 + First 默认 | `registerType` push；**补** `asDefault`/`setDefaultType`（C# 无此 API） | 阶段 3 |
+| `Deserialize<T>` | `parseAs`（TypeInstance 选型子集） | 阶段 3 |
 
 **有意不迁：** ExtraMember、NamingContract、AllowFields、Enum 元数据。
 
@@ -104,8 +104,8 @@ parseAs(expected, text): T
 | 契约 adapter / 映射 | `src/schema/*` | 2.1 叶子 ✓ → 2.2 递归 + 边界 |
 | Handling 上下文 | `NumberHandling.resolve*`、Visitor/Generator | 2.2（OTP / OT 内） |
 | 结构 walk | Visitor/Generator `*WithSchema` | 2.2（array + 嵌套 object） |
-| 鸭子 / parseAs | Registry、Serializer | 3 |
-| 测试 | `number-handling*.test.ts` ✓；**新建** `runtime-schema*.test.ts`；`duck*.test.ts` | 各阶段 |
+| 默认实现 / parseAs | Registry、Serializer、Visitor | 3 |
+| 测试 | `number-handling` ✓；`runtime-schema` ✓；**新建** `multi-implementation.test.ts` | 各阶段 |
 
 目标目录（2.1）：
 
@@ -143,12 +143,12 @@ src/
 | 1 | M | — | **done** |
 | 2.1 | M–L | 阶段 1 | **done** |
 | 2.2 | L | 2.1 | **done** |
-| 3 | S–M | 2.2（D4 依赖 schema） | **next** |
+| 3 | S–M | 2.2 | **next（API 已锁定，见 phase-3）** |
 
 - PR1 = 阶段 1 ✓  
-- PR2 = 2.1 ✓ · PR3 = 2.2 ✓ · PR4 = 3  
+- PR2 = 2.1 ✓ · PR3 = 2.2 ✓ · PR4 = 阶段 3 · 其后 Mongo 类型  
 
-2.1 / 2.2 已完成；细节与落点见 [阶段 2 分册](./phase-2-class-metadata-schema.md)。
+2.1 / 2.2 已完成；阶段 3 见 [phase-3-duck-types.md](./phase-3-duck-types.md)。
 
 ---
 
@@ -171,6 +171,6 @@ src/
 | **[implementation-plan.md](./implementation-plan.md)** | **本入口（进度 + 决策摘要）** |
 | [phase-1-number-handling.md](./phase-1-number-handling.md) | 阶段 1（已完成归档） |
 | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2（2.1 · 2.2 done） |
-| [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 |
+| [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 · 鸭子类型 / 默认实现 / parseAs |
 | [type-system.md](../../type-system.md) | 规范 |
 | `E:\dev\VS2022\tason-net` | C# 参考实现 |
