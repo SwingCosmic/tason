@@ -66,6 +66,10 @@ export class TASONGenerator {
       return undefined;
     } else if (Array.isArray(value)) {
       return this.ArrayValue(value);
+    } else if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
+      // TypedArray / DataView / ArrayBuffer / Node Buffer 先转核心 Buffer，
+      // 不能落到 iterable 分支写成数字数组
+      return this.MaybeObjectValue(value as object);
     } else if (Symbol.iterator in (value as any)) {
       // 可迭代协议：仅当 [Symbol.iterator] 真是方法时才按 iterable 序列化
       const iter = (value as any)[Symbol.iterator];
@@ -251,7 +255,11 @@ export class TASONGenerator {
     do {
       let buffer: ArrayBufferLike | null = null;
       if (ArrayBuffer.isView(value)) {
-        buffer = value.buffer;
+        // Node Buffer 可能共用底层池，必须按 view 切片
+        buffer = value.buffer.slice(
+          value.byteOffset,
+          value.byteOffset + value.byteLength,
+        );
       } else if (value instanceof ArrayBuffer) {
         buffer = value;
       } else {

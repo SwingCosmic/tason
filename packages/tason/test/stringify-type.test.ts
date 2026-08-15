@@ -57,6 +57,9 @@ describe("内置类型序列化测试", () => {
       .toEqual(`Buffer("base64,eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")`);
     expect(TASON.stringify(new _Buffer(`hex, 2e09c9650a9779f1ce8dc232881f06736c6e5e0a3236292d2679ffce2e9f49bc`)))
       .toEqual(`Buffer("hex,2E09C9650A9779F1CE8DC232881F06736C6E5E0A3236292D2679FFCE2E9F49BC")`);
+    // TypedArray / Node Buffer 不得当成 iterable 数字数组
+    expect(TASON.stringify(Uint8Array.of(0x61))).toEqual(`Buffer("base64,YQ==")`);
+    expect(TASON.stringify(Buffer.from([0x61]))).toEqual(`Buffer("base64,YQ==")`);
   });
 
   test("Date", () => {
