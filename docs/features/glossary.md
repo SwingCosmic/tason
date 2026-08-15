@@ -99,3 +99,6 @@ API 形状与行为矩阵见 [runtime-type/phase-3-duck-types.md](./runtime-type
 | **ObjectType / 对象类型** | TypeInstance 的一种：用对象字面量构造，如 `User({…})` |
 | **装箱 / 拆箱** | 写出 TypeName 包装，或还原成 `number` / `bigint` 等原生值 |
 | **`_t`** | 文档映射层给 ObjectType 节点写的类型标记（默认键名）；不是 TASON 文本语法。见 [polymorphic-persistence](./polymorphic-persistence/) |
+| **BSON 类型码** | 协议里的封闭集合（`objectId` = 7、`long` = 18…）。不能在库或 TASON 里发明新码。清单与适配见 [phase-c-bson-types](./monorepo/phase-c-bson-types.md) |
+| **`binData` 用户子类型** | 子类型 128–255：协议允许的自定义载荷槽，底层仍是类型码 5。TASON 默认当 `Buffer`；要独立 TypeName 用 TypeInfo.`match` |
+| **TypeInfo.`match`** | 在 `instanceof ctor` 之后再认领实例。同一 JS 类对应多个 TypeName 时用（`Binary.sub_type`、`Long` vs `Timestamp`） |

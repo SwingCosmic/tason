@@ -21,6 +21,7 @@ import {
   StringKeyContext,
 } from "./grammar/TASONParser";
 import type TASONTypeRegistry from "./TASONTypeRegistry";
+import type { TASONTypeInfo } from "./TASONTypeInfo";
 import unescape from "unescape-js";
 import Decimal from "decimal.js";
 import { TASONSerializerOptions } from "./TASONSerializerOptions";
@@ -28,6 +29,10 @@ import { unwrapNumberInstance } from "./types/NumberHandling";
 import { mapTypeInstanceToRuntime } from "./schema/mapTypeInstanceToRuntime";
 import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
 import type { RuntimeType } from "./schema/RuntimeType";
+
+type ParseExpected =
+  | (abstract new (...args: any[]) => any)
+  | string;
 
 /**
  * 反序列化 Visitor。
@@ -43,6 +48,10 @@ export class TASONVisitor {
    * >0 且 handling 为 object-fallback-all、无字段契约时，保留数值包装。
    */
   private objectTypeDepth = 0;
+  /**
+   * parseAs 传入的期望类型；仅消费根 TypeInstance，嵌套仍走 getDefaultType。
+   */
+  private expected: ParseExpected | undefined;
 
   constructor(
     registry: TASONTypeRegistry,
@@ -54,6 +63,28 @@ export class TASONVisitor {
 
   visit(ctx: StartContext): any {
     return this.Start(ctx);
+  }
+
+  /**
+   * 指定类型反序列化入口。根 TypeInstance 用 expected 选型；无匹配抛错。
+   */
+  visitAs(ctx: StartContext, expected: ParseExpected): any {
+    this.expected = expected;
+    try {
+      const value = this.Start(ctx);
+      if (this.expected !== undefined) {
+        const label =
+          typeof expected === "string"
+            ? expected
+            : expected.name || "(anonymous)";
+        throw new Error(
+          `parseAs expected a TypeInstance compatible with ${label}`,
+        );
+      }
+      return value;
+    } finally {
+      this.expected = undefined;
+    }
   }
 
   Start(ctx: StartContext) {
@@ -329,14 +360,13 @@ export class TASONVisitor {
   ScalarTypeInstance(ctx: ScalarTypeInstanceContext) {
     const typeName = ctx.IDENTIFIER().getText();
     const str = this.getTextValue(ctx.STRING());
-
-    return this.createTypeInstance(typeName, str);
+    const typeInfo = this.resolveTypeInfo(typeName);
+    return this.finishInstance(typeInfo, str);
   }
 
   ObjectTypeInstance(ctx: ObjectTypeInstanceContext) {
     const typeName = ctx.IDENTIFIER().getText();
-    const typeInfo = this.registry.getDefaultType(typeName);
-    if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
+    const typeInfo = this.resolveTypeInfo(typeName);
 
     // 进入 ObjectType 成员上下文（C# ObjectType 属性路径）
     // 仅影响「无字段契约」时 OTP 是否保留数值包装；有 schema 叶子契约时由 map* 收到 RuntimeType
@@ -345,6 +375,7 @@ export class TASONVisitor {
       // 有 schema 时：ClassMetadata 优先于 OTP 的「≈ all」
       // （OTP 的保留包装只覆盖无契约字段；有契约必须落到 bigint/number/… 才能给应用用）
       // native / all：明确忽略契约
+      // parseAs：先按期望 ctor 选 TypeInfo，再套该 TypeName 的 schema
       if (this.shouldApplySchemaContract()) {
         const metadata = this.registry.getClassMetadata(typeName);
         const adapter = this.registry.getSchemaAdapter();
@@ -354,15 +385,59 @@ export class TASONVisitor {
             metadata.schema,
             adapter,
           );
-          return this.registry.createInstance(typeInfo, bag);
+          return this.finishInstance(typeInfo, bag);
         }
       }
 
       const obj = this.Object(ctx.object());
-      return this.createTypeInstance(typeName, obj);
+      return this.finishInstance(typeInfo, obj);
     } finally {
       this.objectTypeDepth--;
     }
+  }
+
+  /**
+   * 解析 TypeInstance 所用 TypeInfo。
+   * 自动 parse：getDefaultType。
+   * parseAs：仅根节点消费 expected（ctor → getTypeInfoByCtor；TypeName → 默认实现，须同 entry / 别名）。
+   */
+  private resolveTypeInfo(typeName: string) {
+    const expected = this.expected;
+    if (expected === undefined) {
+      const typeInfo = this.registry.getDefaultType(typeName);
+      if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
+      return typeInfo;
+    }
+
+    this.expected = undefined;
+
+    if (typeof expected === "string") {
+      if (!this.registry.isSameTypeName(typeName, expected)) {
+        throw new Error(
+          `Expected TypeName "${expected}", got "${typeName}"`,
+        );
+      }
+      const typeInfo = this.registry.getDefaultType(expected);
+      if (!typeInfo) throw new Error(`Unregistered type: ${expected}`);
+      return typeInfo;
+    }
+
+    const typeInfo = this.registry.getTypeInfoByCtor(typeName, expected);
+    if (!typeInfo) {
+      throw new Error(
+        `No implementation of "${typeName}" for constructor ${expected.name || "(anonymous)"}`,
+      );
+    }
+    return typeInfo;
+  }
+
+  private finishInstance(typeInfo: TASONTypeInfo<any>, value: any) {
+    const instance = this.registry.createInstance(typeInfo, value);
+    return unwrapNumberInstance(
+      instance,
+      this.options.deserializeNumberHandling,
+      { inObjectType: this.objectTypeDepth > 0 },
+    );
   }
 
   /**
@@ -373,17 +448,6 @@ export class TASONVisitor {
   private shouldApplySchemaContract(): boolean {
     const h = this.options.deserializeNumberHandling;
     return h === "object-fallback-native" || h === "object-fallback-all";
-  }
-
-  private createTypeInstance(typeName: string, value: any) {
-    const typeInfo = this.registry.getDefaultType(typeName);
-    if (!typeInfo) throw new Error(`Unregistered type: ${typeName}`);
-    const instance = this.registry.createInstance(typeInfo, value);
-    return unwrapNumberInstance(
-      instance,
-      this.options.deserializeNumberHandling,
-      { inObjectType: this.objectTypeDepth > 0 },
-    );
   }
 
   private getTextValue(ctx: TerminalNode) {

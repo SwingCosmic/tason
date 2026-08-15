@@ -4,7 +4,8 @@
 
 | 文档 | 职责 |
 | --- | --- |
-| **[implementation-plan.md](./implementation-plan.md)** | 本 feature 进度（目录、工具链、迁移阶段、MongoDB 包范围） |
+| **[implementation-plan.md](./implementation-plan.md)** | 本 feature 进度（目录、工具链、迁移阶段） |
+| **[phase-c-bson-types.md](./phase-c-bson-types.md)** | 官方类型清单、序列化/反序列化映射、选型分支（四张表） |
 
 **动机：**
 

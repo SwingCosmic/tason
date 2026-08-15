@@ -9,6 +9,11 @@ import {
 import { TASONNamedTypeInfo, TASONTypeInfo } from "./TASONTypeInfo";
 import type { RuntimeSchemaAdapter } from "./schema/RuntimeSchemaAdapter";
 
+export type RegisterTypeOptions = {
+  /** true：该实现成为 getDefaultType；false/缺省：push（追加类型实现），不改当前默认 */
+  asDefault?: boolean;
+};
+
 interface TASONRegistryEntry<T> {
   name: string;
   types: TASONTypeInfo<T>[];
@@ -62,19 +67,125 @@ export default class TASONTypeRegistry {
     return this.schemaAdapter;
   }
 
+  /** 与构造 Registry 时的 `allowUnsafeTypes` 相同（核心 `Symbol`、扩展包 unsafe 类型共用）。 */
+  get allowUnsafeTypes(): boolean {
+    return this.options.allowUnsafeTypes === true;
+  }
+
   /**
    * 注册一个类型。
+   * 同名再注册 = 追加类型实现（push），不改当前默认；`options.asDefault` 则置顶。
+   * 同一 ctor 已存在时更新该实现（幂等），避免重复 push。
    * @param metadata 可选 ClassMetadata（含 schema 契约）；R1 存于 entry 旁路
    */
   registerType<T>(
     name: string,
     typeInfo: TASONTypeInfo<T>,
     metadata?: TasonClassMetadata,
+    options?: RegisterTypeOptions,
   ) {
-    let entry = this.getEntry(name);
-    entry.types.push(typeInfo);
+    const entry = this.getEntry(name);
+    const existing = entry.types.findIndex((t) => t.ctor === typeInfo.ctor);
+    if (existing >= 0) {
+      entry.types[existing] = typeInfo;
+      if (options?.asDefault && existing > 0) {
+        entry.types.splice(existing, 1);
+        entry.types.unshift(typeInfo);
+      }
+    } else if (options?.asDefault) {
+      entry.types.unshift(typeInfo);
+    } else {
+      entry.types.push(typeInfo);
+    }
     if (metadata !== undefined) {
       entry.metadata = metadata;
+    }
+  }
+
+  /**
+   * 将 typeInfo 设为该 TypeName 的默认实现。
+   * 已注册（按 ctor）则置顶；未注册则先注册再置顶。
+   */
+  setDefaultType<T>(name: string, typeInfo: TASONTypeInfo<T>): void {
+    this.registerType(name, typeInfo, undefined, { asDefault: true });
+  }
+
+  /**
+   * 按 ctor 在该 TypeName 下查找并设为默认。找不到则抛错（必须已注册）。
+   */
+  setDefaultTypeByCtor(
+    name: string,
+    ctor: abstract new (...args: any[]) => any,
+  ): void {
+    const entry = this.types.get(name);
+    if (!entry || entry.types.length === 0) {
+      throw new Error(`Type '${name}' is not registered`);
+    }
+    const index = entry.types.findIndex((t) => t.ctor === ctor);
+    if (index < 0) {
+      throw new Error(
+        `No implementation of '${name}' for constructor ${ctor.name || "(anonymous)"}`,
+      );
+    }
+    if (index > 0) {
+      const [info] = entry.types.splice(index, 1);
+      entry.types.unshift(info);
+    }
+  }
+
+  /**
+   * 按期望构造函数选实现（对齐 C# GetType(name, Type)；多实现解析用）。
+   * 先精确匹配 ctor，再匹配「实现是 expected 的子类」。
+   * `Object` / `Function` 不作父类回退（否则几乎全中）。
+   */
+  getTypeInfoByCtor<T>(
+    name: string,
+    ctor: abstract new (...args: any[]) => any,
+  ): TASONTypeInfo<T> | undefined {
+    const entry = this.types.get(name);
+    if (!entry) return;
+
+    const exact = entry.types.find((t) => t.ctor === ctor);
+    if (exact) return exact as TASONTypeInfo<T>;
+
+    if (ctor === Object || ctor === Function) {
+      return undefined;
+    }
+
+    return entry.types.find((t) => this.ctorExtends(t.ctor, ctor)) as
+      | TASONTypeInfo<T>
+      | undefined;
+  }
+
+  /**
+   * 两个 TypeName 是否指向同一 registry entry（含别名，如 Long ↔ Int64）。
+   */
+  isSameTypeName(a: string, b: string): boolean {
+    if (a === b) return true;
+    const ea = this.types.get(a);
+    const eb = this.types.get(b);
+    return !!ea && ea === eb;
+  }
+
+  /** `instanceof ctor`，若 TypeInfo 带 `match` 则再过滤（同一 ctor 多个 TypeName）。 */
+  private matchesType<T>(type: TASONTypeInfo<T>, value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    if (!(value instanceof type.ctor)) return false;
+    return type.match ? type.match(value as T) : true;
+  }
+
+  private ctorExtends(
+    implCtor: Function,
+    expected: Function,
+  ): boolean {
+    try {
+      return (
+        typeof implCtor === "function" &&
+        implCtor.prototype != null &&
+        implCtor.prototype instanceof expected
+      );
+    } catch {
+      return false;
     }
   }
 
@@ -133,7 +244,7 @@ export default class TASONTypeRegistry {
     const entry = this.types.get(name);
     if (!entry) return;
 
-    return entry.types.find(t => obj instanceof t.ctor) as TASONTypeInfo<T>;
+    return entry.types.find((t) => this.matchesType(t, obj)) as TASONTypeInfo<T>;
   }
   getDefaultType<T>(name: string): TASONTypeInfo<T> | undefined {
     const entry = this.types.get(name);
@@ -268,12 +379,12 @@ export default class TASONTypeRegistry {
 
     for (const entry of this.types.entries()) {
       for (const type of entry[1].types) {
-        if (value instanceof type.ctor) {
+        if (this.matchesType(type, value)) {
           return {
             ...type,
             name: entry[0],
           };
-        }        
+        }
       }
     }
     return undefined;

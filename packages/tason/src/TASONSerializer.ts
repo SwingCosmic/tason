@@ -54,14 +54,28 @@ export default class TASONSerializer {
 
   /** 将TASON字面量字符串反序列化为对应的值 */
   parse<T = any>(text: string): T {
+    return this.visitor.visit(this.parseStart(text));
+  }
+
+  /**
+   * 指定类型反序列化（对齐 C# Deserialize&lt;T&gt; 子集；多实现解析）。
+   * `expected` 为构造函数，或已注册 TypeName 字符串。
+   * 根值须为 TypeInstance；按期望 ctor / TypeName 选型，无匹配则抛错。
+   */
+  parseAs<T>(
+    expected: (abstract new (...args: any[]) => T) | string,
+    text: string,
+  ): T {
+    return this.visitor.visitAs(this.parseStart(text), expected);
+  }
+
+  private parseStart(text: string) {
     const chars = CharStreams.fromString(text);
     const lexer = new TASONLexer(chars);
     const tokens = new CommonTokenStream(lexer);
     const parser = new TASONParser(tokens);
     parser.addErrorListener(new ThrowingErrorListener());
-    const tree = parser.start();
-
-    return this.visitor.visit(tree);
+    return parser.start();
   }
 
   /** 将JavaScript变量序列化为TASON字符串 */
