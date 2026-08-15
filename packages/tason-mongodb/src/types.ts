@@ -1,4 +1,22 @@
 import type { TASONTypeInfo } from "tason";
+import {
+  BSONEncryptedTypeInfo,
+  BSONJavaScriptTypeInfo,
+  BSONMaxKeyTypeInfo,
+  BSONMinKeyTypeInfo,
+  BSONSensitiveTypeInfo,
+  BSONTimestampTypeInfo,
+  BSONVectorTypeInfo,
+  BufferTypeInfo,
+  Decimal128TypeInfo,
+  Float64TypeInfo,
+  Int32TypeInfo,
+  Int64TypeInfo,
+  MD5TypeInfo,
+  ObjectIdTypeInfo,
+  UUIDBinaryTypeInfo,
+  UUIDTypeInfo,
+} from "./typeInfos";
 
 /**
  * 本包可注册的 TypeName（对应官方 BSON 表，见
@@ -25,9 +43,6 @@ export type MongoTypeName =
 
 export type MongoTypeStrategy = "new" | "append";
 
-/** 阶段 C 三步：C1 新标量 / C2 鸭子类型追加 / C3 Binary 子类型 */
-export type MongoTypeWave = "C1" | "C2" | "C3";
-
 export interface MongoTypeSpec {
   /** 注册到的 TypeName */
   typeName: MongoTypeName;
@@ -37,35 +52,61 @@ export interface MongoTypeSpec {
   canReplaceDefault?: boolean;
   /** 仅当 registry.allowUnsafeTypes 时登记（与核心 Symbol 同一开关） */
   unsafe?: boolean;
-  wave: MongoTypeWave;
 }
 
 /**
- * 类型矩阵。P0 起往 {@link MongoTypes} 填 TypeInfo；未填的项 register 时跳过。
- * 档位与适配理由只在 phase-c 分册维护，此处不重复。
+ * 类型矩阵。档位与适配理由只在 phase-c 分册维护，此处不重复。
  */
 export const MongoTypeCatalog: readonly MongoTypeSpec[] = [
-  { typeName: "ObjectId", strategy: "new", wave: "C1" },
-  { typeName: "BSONMinKey", strategy: "new", wave: "C1" },
-  { typeName: "BSONMaxKey", strategy: "new", wave: "C1" },
-  { typeName: "BSONTimestamp", strategy: "new", wave: "C1" },
-  { typeName: "BSONJavaScript", strategy: "new", unsafe: true, wave: "C1" },
-  { typeName: "Int64", strategy: "append", canReplaceDefault: true, wave: "C2" },
-  { typeName: "Decimal128", strategy: "append", canReplaceDefault: true, wave: "C2" },
-  { typeName: "Int32", strategy: "append", canReplaceDefault: true, wave: "C2" },
-  { typeName: "Float64", strategy: "append", canReplaceDefault: true, wave: "C2" },
-  { typeName: "UUID", strategy: "append", canReplaceDefault: true, wave: "C2" },
-  { typeName: "Buffer", strategy: "append", canReplaceDefault: true, wave: "C3" },
-  { typeName: "MD5", strategy: "new", wave: "C3" },
-  { typeName: "BSONEncrypted", strategy: "new", wave: "C3" },
-  { typeName: "BSONSensitive", strategy: "new", wave: "C3" },
-  { typeName: "BSONVector", strategy: "new", wave: "C3" },
+  { typeName: "ObjectId", strategy: "new" },
+  { typeName: "BSONMinKey", strategy: "new" },
+  { typeName: "BSONMaxKey", strategy: "new" },
+  { typeName: "BSONTimestamp", strategy: "new" },
+  { typeName: "BSONJavaScript", strategy: "new", unsafe: true },
+  { typeName: "Int64", strategy: "append", canReplaceDefault: true },
+  { typeName: "Decimal128", strategy: "append", canReplaceDefault: true },
+  { typeName: "Int32", strategy: "append", canReplaceDefault: true },
+  { typeName: "Float64", strategy: "append", canReplaceDefault: true },
+  { typeName: "UUID", strategy: "append", canReplaceDefault: true },
+  { typeName: "Buffer", strategy: "append", canReplaceDefault: true },
+  { typeName: "MD5", strategy: "new" },
+  { typeName: "BSONEncrypted", strategy: "new" },
+  { typeName: "BSONSensitive", strategy: "new" },
+  { typeName: "BSONVector", strategy: "new" },
 ];
 
 export const ALL_MONGO_TYPE_NAMES: readonly MongoTypeName[] =
   MongoTypeCatalog.map((spec) => spec.typeName);
 
+/** 同一 TypeName 可挂多条实现（如 UUID + Binary subtype 3/4）。 */
+export type MongoTypeInfos =
+  | TASONTypeInfo<any>
+  | readonly TASONTypeInfo<any>[];
+
 /**
- * 类型实现表。按 catalog 所属步骤（C1–C3）填入；测试与高级定制可覆盖。
+ * 类型实现表。测试与高级定制可覆盖。
  */
-export const MongoTypes: Partial<Record<MongoTypeName, TASONTypeInfo<any>>> = {};
+export const MongoTypes: Record<MongoTypeName, MongoTypeInfos> = {
+  ObjectId: ObjectIdTypeInfo,
+  BSONMinKey: BSONMinKeyTypeInfo,
+  BSONMaxKey: BSONMaxKeyTypeInfo,
+  BSONTimestamp: BSONTimestampTypeInfo,
+  BSONJavaScript: BSONJavaScriptTypeInfo,
+  Int64: Int64TypeInfo,
+  Decimal128: Decimal128TypeInfo,
+  Int32: Int32TypeInfo,
+  Float64: Float64TypeInfo,
+  UUID: [UUIDTypeInfo, UUIDBinaryTypeInfo],
+  Buffer: BufferTypeInfo,
+  MD5: MD5TypeInfo,
+  BSONEncrypted: BSONEncryptedTypeInfo,
+  BSONSensitive: BSONSensitiveTypeInfo,
+  BSONVector: BSONVectorTypeInfo,
+};
+
+export function mongoTypeInfoList(
+  entry: MongoTypeInfos | undefined,
+): TASONTypeInfo<any>[] {
+  if (!entry) return [];
+  return Array.isArray(entry) ? [...entry] : [entry];
+}

@@ -22,6 +22,6 @@ export type RegisterMongoDBTypesOptions = {
    * - 对象：按 TypeName 细开
    */
   replaceDefaultImplementation?: boolean | ReplaceDefaultImplementationMap;
-  /** 选择性注册；默认全部（未实现的 TypeInfo 仍会跳过） */
+  /** 选择性注册；默认全部 */
   include?: MongoTypeName[];
 };

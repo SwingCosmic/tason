@@ -4,6 +4,7 @@ import {
   ALL_MONGO_TYPE_NAMES,
   MongoTypeCatalog,
   MongoTypes,
+  mongoTypeInfoList,
   type MongoTypeName,
 } from "./types";
 
@@ -19,10 +20,9 @@ function shouldReplaceDefault(
 /**
  * 向 registry 注册本包全部（或 `include` 指定的）类型。
  *
- * {@link MongoTypes} 未填 TypeInfo 的项会跳过，不改对应 registry 条目。
- * 实现填入 TypeInfo 后：
  * - 新 TypeName：`registerType`
  * - 追加类型实现：`registerType` push；`replaceDefaultImplementation` 时 `asDefault`
+ * - {@link MongoTypes} 缺条目则跳过，不改对应 registry
  *
  * 同一 registry 重复调用：核心按 ctor 幂等更新，不重复堆积。
  */
@@ -49,15 +49,19 @@ export function registerMongoDBTypes(
       }
       continue;
     }
-    const typeInfo = MongoTypes[spec.typeName];
-    if (!typeInfo) continue;
+    const infos = mongoTypeInfoList(MongoTypes[spec.typeName]);
+    if (infos.length === 0) continue;
 
-    const asDefault =
+    const replaceDefault =
       spec.strategy === "append" &&
       spec.canReplaceDefault === true &&
       shouldReplaceDefault(spec.typeName, options.replaceDefaultImplementation);
 
-    registry.registerType(spec.typeName, typeInfo, undefined, { asDefault });
+    for (let i = 0; i < infos.length; i++) {
+      registry.registerType(spec.typeName, infos[i], undefined, {
+        asDefault: replaceDefault && i === 0,
+      });
+    }
   }
 
   return registry;

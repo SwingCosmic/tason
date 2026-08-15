@@ -1,6 +1,6 @@
 # Monorepo 与 MongoDB 扩展包 — 实施计划
 
-> **状态：阶段 A + B 已完成；C.0 清单已锁定；C1 / C2 / C3 TypeInfo 待填**  
+> **状态：阶段 A + B + C1 + C2 + C3 已完成；C 集成测试与阶段 D 待做**  
 > 概念入口：[README.md](./README.md)  
 > 类型清单：[phase-c-bson-types.md](./phase-c-bson-types.md)  
 > 姊妹实现：`E:\dev\VS2022\tason-net`（`TASON` + `TASON.Types.*` + `TASON.AspNetCore`）
@@ -43,7 +43,7 @@
 | 工具 | Yarn Classic（1.22）、`tsc` + `tsc-alias`、Jest、核心 `@/*` → `src/*` |
 | 扩展点 | `registerType` / `asDefault` / `setDefaultType*` / `parseAs`；扩展包 `registerMongoDBTypes` |
 | 内置类型 | 数字、Date*、RegExp、UUID、Buffer、JSON*、Dictionary 等（见 `packages/tason/src/types/`） |
-| Mongo | 注册骨架已落地；`MongoTypes` 空表；C1–C3 TypeInfo 未填 |
+| Mongo | 注册骨架已落地；C1 / C2 / C3 TypeInfo 已填 |
 
 ### 1.2 为何 monorepo 而不是多仓库
 
@@ -223,7 +223,7 @@ s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 | 替换默认实现 | `asDefault` / `setDefaultType` | **`replaceDefaultImplementation`** |
 | 单次选型 | `parseAs` / `getTypeInfoByCtor` | 应用层可选；包内不强制 |
 
-`registerMongoDBTypes` 骨架已按此 API 落地。**TypeInfo 仍待阶段 C** 填入 `MongoTypes`。
+`registerMongoDBTypes` 骨架已按此 API 落地。**C1 / C2 / C3 TypeInfo 已填入 `MongoTypes`**。
 
 ### 3.4 核心需保证的公开导出（迁包时核对）
 
@@ -305,8 +305,8 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 | 层 | 文件（建议） | 测什么 |
 | --- | --- | --- |
-| **A 类型** | `types-c1.test.ts` / `types-c2.test.ts` / `types-c3.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 |
-| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`（尤其 `Int64` / `Decimal128` / `Int32` / `Float64`）；TASON Handling 与驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64` 组合下的边界 |
+| **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 |
+| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。矩阵与覆盖编号见 [phase-c §5](./phase-c-bson-types.md) |
 | **C 集成** | `integration.test.ts` | 真实 `mongodb` 连接，或 mongoose `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary。无连接则 skip，不强制 CI 必装 |
 
 依赖：workspace `tason`；`bson` 为 devDependency。集成分层再加 `mongodb` / `mongoose`（dev，可选）。
@@ -358,7 +358,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ### 阶段 C — TypeInfo（三步）
 
-命名与映射：[phase-c-bson-types.md](./phase-c-bson-types.md)。catalog 各条的 `wave` 字段标明所属步骤（C1 / C2 / C3），与下表对应。
+命名与映射：[phase-c-bson-types.md](./phase-c-bson-types.md)。下表是当时的实施分步（运行时 catalog 不再带步骤字段）。
 
 **命名：** 仅 BSON 内部语义的 TypeName 以 **`BSON`** 开头（同核心 `JSONObject`）；通用名不加前缀。  
 `BSONTimestamp` / `BSONMinKey` / `BSONMaxKey` / `BSONJavaScript` / `BSONEncrypted` / `BSONSensitive` / `BSONVector`。  
@@ -368,7 +368,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 | # | 任务 |
 | --- | --- |
-| C1.1 | 按 catalog 中 `wave: "C1"` 的条目注册新 TypeName；确认 `include` / `allowUnsafeTypes` 对它们生效 |
+| C1.1 | 按 catalog 中 C1 条目注册新 TypeName；确认 `include` / `allowUnsafeTypes` 对它们生效 |
 | C1.2 | `ObjectId` TypeInfo |
 | C1.3 | `BSONMinKey` / `BSONMaxKey`（无载荷标量） |
 | C1.4 | `BSONTimestamp` ObjectType `{ t, i }`；不得占用核心 `Timestamp` |
@@ -395,7 +395,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | --- | --- |
 | C3.1 | `Buffer` 追加 `Binary`（剩余 subtype）；`match` 排除 3/4/5/6/8/9 |
 | C3.2 | `MD5` / `BSONEncrypted` / `BSONSensitive` / `BSONVector` |
-| C3.3 | **A** 按 subtype 写出对应 TypeName；**B** `promoteBuffers` 等边界；**C 集成**（真实驱动 / mongoose）可在 C3 完成后进行 |
+| C3.3 | **A** 按 subtype 写出对应 TypeName；**B** `promoteBuffers` 等边界。**C 集成**（真实驱动 / mongoose）需额外环境，不在本步做 |
 
 **DoD：** `Binary` 共用基类选型与分册 §4.1 一致；加密 / 向量往返保住 subtype。
 
@@ -434,7 +434,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | `docs/features/README.md` | 加入 monorepo feature 索引 |
 | `docs/type-system.md` | 「同一 TypeName 的多种实现」+「扩展类型」短节（链到包 README） |
 | 根 `README.md` | 仓库结构；ObjectId 依赖 `tason-mongodb` |
-| `packages/tason-mongodb/README.md` | 面向用户的使用说明（注册骨架；类型待阶段 C） |
+| `packages/tason-mongodb/README.md` | 面向用户的使用说明（C1 / C2 / C3 已写） |
 | 本 plan | 进度勾选（A / B 已完成） |
 
 用户文档只写 **怎么用**；目录迁移细节与排期只留在本 feature 包。
@@ -503,9 +503,9 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 ### 阶段 C — TypeInfo
 
 - [x] C.0 清单与映射（[phase-c-bson-types.md](./phase-c-bson-types.md)）；命名改为 `BSON*` 前缀规则
-- [ ] C1 注册 + `ObjectId` / `BSONMinKey` / `BSONMaxKey` / `BSONTimestamp` / `BSONJavaScript` + A/B 测试
-- [ ] C2 `Int64` / `Decimal128` / `Int32` / `Float64` / `UUID` 追加 + replaceDefault 配置测试
-- [ ] C3 Binary 子类型 + 集成测试
+- [x] C1 注册 + `ObjectId` / `BSONMinKey` / `BSONMaxKey` / `BSONTimestamp` / `BSONJavaScript` + A/B 测试
+- [x] C2 `Int64` / `Decimal128` / `Int32` / `Float64` / `UUID` 追加 + replaceDefault 配置测试
+- [x] C3 Binary 子类型 + A/B 测试（C 集成测试需额外环境，暂缓）
 
 ### 阶段 D — 发布
 

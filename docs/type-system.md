@@ -207,5 +207,18 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
 
 ## 扩展类型
 
-核心默认表不含 MongoDB / BSON。需要 `ObjectId` 等 TypeName 时安装 `tason-mongodb` 并 `registerMongoDBTypes(registry)`。  
+核心默认表不含 MongoDB / BSON。需要这些 TypeName 时安装 [`tason-mongodb`](../packages/tason-mongodb/README.md) 并 `registerMongoDBTypes(registry)`：
+
+| TypeName | 文本 | 说明 |
+| --- | --- | --- |
+| `ObjectId` | `ObjectId("24hex")` | `bson.ObjectId` |
+| `BSONMinKey` / `BSONMaxKey` | `BSONMinKey("")` / `BSONMaxKey("")` | 无载荷标量 |
+| `BSONTimestamp` | `BSONTimestamp({ t, i })` | BSON 内部时间戳；**不是**核心毫秒 `Timestamp` |
+| `BSONJavaScript` | `BSONJavaScript("源码")` | `bson.Code`；需 `allowUnsafeTypes` |
+| `Int64` / `Decimal128` / `Int32` / `Float64` / `UUID` / `Buffer` | 与核心同名 | 追加 bson 类；`replaceDefaultImplementation` 可换成默认 |
+| `MD5` | `MD5("32hex")` | `bson.Binary` subtype 5 |
+| `BSONEncrypted` / `BSONSensitive` | `BSONEncrypted("base64,…")` | `bson.Binary` subtype 6 / 8 |
+| `BSONVector` | `BSONVector({ dtype, values })` | `bson.Binary` subtype 9；`dtype` 为 `"int8"` / `"float32"` / `"packedBit"` |
+
+Binary 子类型、驱动 `promote*` 与 `replaceDefault` / Handling 交叉见该包 README 的选项矩阵。  
 对象图写入文档时的 `_t` 打标 **不属于** 该扩展包，见实现资料 `docs/features/polymorphic-persistence/`。

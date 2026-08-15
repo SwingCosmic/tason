@@ -85,7 +85,7 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 | 包 | 目录 | 说明 |
 | --- | --- | --- |
 | [`tason`](packages/tason) | `packages/tason` | 核心序列化（npm 包名不变） |
-| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展（注册骨架已就绪；P0 类型待实现） |
+| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展 |
 
 贡献者请在仓库根执行 `yarn install` / `yarn build` / `yarn test`。发布从各包目录进行。
 
@@ -106,7 +106,16 @@ yarn add tason
 pnpm add tason
 ```
 
-MongoDB `ObjectId` 等 BSON 类型需额外包 [`tason-mongodb`](packages/tason-mongodb)（注册 API 已就绪，类型实现尚未填入；见该包 README）。
+MongoDB `ObjectId` 等 BSON 类型需额外安装 [`tason-mongodb`](packages/tason-mongodb) 并注册：
+
+```ts
+import TASON from "tason";
+import { registerMongoDBTypes } from "tason-mongodb";
+
+const s = new TASON.Serializer();
+registerMongoDBTypes(s.registry);
+s.parse(`ObjectId("6670f391dcb0bd791cb3bd18")`);
+```
 
 同一 TypeName 可挂多种实现，并用 `parseAs` 单次选型，见 [类型系统](docs/type-system.md#同一-typename-的多种实现)。
 

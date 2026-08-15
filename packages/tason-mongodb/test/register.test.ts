@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
-import TASON, { type TASONTypeInfo } from "tason";
+import { Binary } from "bson";
+import TASON from "tason";
 import {
   ALL_MONGO_TYPE_NAMES,
   MongoTypeCatalog,
@@ -8,7 +9,7 @@ import {
 } from "../src";
 
 /**
- * 注册骨架：空表不改 registry；选项形状；未知 include
+ * 注册入口：catalog / 未知 include / 追加实现
  */
 
 function createSerializer() {
@@ -16,35 +17,17 @@ function createSerializer() {
 }
 
 describe("registerMongoDBTypes", () => {
-  test("empty catalog is a no-op on registry", () => {
+  test("Buffer appends Binary implementation", () => {
     const s = createSerializer();
-    const before = s.registry.getDefaultType("Int64");
-    const returned = registerMongoDBTypes(s.registry);
-    expect(returned).toBe(s.registry);
-    expect(s.registry.getDefaultType("Int64")).toBe(before);
-
-    expect(() => s.parse(`ObjectId("6670f391dcb0bd791cb3bd18")`)).toThrow(
-      /Unregistered type/,
-    );
-    expect(s.parse(`Int64("1")`)).toBe(1n);
+    const before = s.registry.getDefaultType("Buffer");
+    expect(registerMongoDBTypes(s.registry)).toBe(s.registry);
+    // 未 replaceDefault：默认仍是核心 Buffer，追加 bson.Binary
+    expect(s.registry.getDefaultType("Buffer")).toBe(before);
+    expect(s.registry.getAllTypes("Buffer")).toHaveLength(2);
+    expect(s.registry.getDefaultType("MD5")!.ctor).toBe(Binary);
   });
 
-  test("accepts replaceDefaultImplementation shapes", () => {
-    const s = createSerializer();
-    expect(() =>
-      registerMongoDBTypes(s.registry, { replaceDefaultImplementation: true }),
-    ).not.toThrow();
-    expect(() =>
-      registerMongoDBTypes(s.registry, {
-        replaceDefaultImplementation: { Int64: true, Decimal128: false },
-      }),
-    ).not.toThrow();
-    expect(() =>
-      registerMongoDBTypes(s.registry, { include: ["ObjectId", "Int64"] }),
-    ).not.toThrow();
-  });
-
-  test("unknown include name", () => {
+  test("unknown include", () => {
     const s = createSerializer();
     expect(() =>
       registerMongoDBTypes(s.registry, {
@@ -53,89 +36,65 @@ describe("registerMongoDBTypes", () => {
     ).toThrow(/Unknown MongoDB type/);
   });
 
-  test("catalog names cover P0 slots", () => {
+  test("catalog names", () => {
+    // 内部语义用 BSON 前缀；不占用核心 Timestamp / MinKey / MaxKey / Code / Binary
     expect(ALL_MONGO_TYPE_NAMES).toEqual(
-      expect.arrayContaining(["ObjectId", "Int64", "Decimal128"]),
+      expect.arrayContaining([
+        "ObjectId",
+        "BSONMinKey",
+        "BSONMaxKey",
+        "BSONTimestamp",
+        "BSONJavaScript",
+        "Int64",
+        "Decimal128",
+        "Buffer",
+        "UUID",
+        "MD5",
+      ]),
     );
+    for (const name of [
+      "Timestamp",
+      "BsonTimestamp",
+      "MinKey",
+      "MaxKey",
+      "Binary",
+      "Code",
+    ]) {
+      expect(ALL_MONGO_TYPE_NAMES).not.toContain(name);
+    }
     expect(
       MongoTypeCatalog.find((spec) => spec.typeName === "Int64"),
-    ).toMatchObject({ strategy: "append", canReplaceDefault: true });
-    expect(
-      MongoTypeCatalog.find((spec) => spec.typeName === "ObjectId"),
-    ).toMatchObject({ strategy: "new" });
-    expect(
-      MongoTypeCatalog.find((spec) => spec.typeName === "BSONTimestamp"),
-    ).toMatchObject({ strategy: "new", wave: "C1" });
-    expect(
-      MongoTypeCatalog.find((spec) => spec.typeName === "BSONMinKey"),
-    ).toMatchObject({ strategy: "new", wave: "C1" });
-    expect(
-      MongoTypeCatalog.find((spec) => spec.typeName === "Int64"),
-    ).toMatchObject({ wave: "C2" });
-    expect(
-      MongoTypeCatalog.find((spec) => spec.typeName === "MD5"),
-    ).toMatchObject({ wave: "C3" });
-    expect(
-      MongoTypeCatalog.find((spec) => spec.typeName === "Buffer"),
     ).toMatchObject({ strategy: "append", canReplaceDefault: true });
     expect(
       MongoTypeCatalog.find((spec) => spec.typeName === "BSONJavaScript"),
     ).toMatchObject({ strategy: "new", unsafe: true });
-    expect(ALL_MONGO_TYPE_NAMES).not.toContain("Timestamp");
-    expect(ALL_MONGO_TYPE_NAMES).not.toContain("BsonTimestamp");
-    expect(ALL_MONGO_TYPE_NAMES).not.toContain("MinKey");
-    expect(ALL_MONGO_TYPE_NAMES).not.toContain("MaxKey");
-    expect(ALL_MONGO_TYPE_NAMES).not.toContain("Binary");
-    expect(ALL_MONGO_TYPE_NAMES).not.toContain("Code");
-    expect(ALL_MONGO_TYPE_NAMES).toEqual(
+    expect(Object.keys(MongoTypes)).toEqual(
       expect.arrayContaining([
-        "Buffer",
+        "ObjectId",
+        "BSONMinKey",
+        "BSONMaxKey",
+        "BSONTimestamp",
+        "BSONJavaScript",
+        "Int64",
+        "Decimal128",
+        "Int32",
+        "Float64",
         "UUID",
+        "Buffer",
         "MD5",
         "BSONEncrypted",
         "BSONSensitive",
         "BSONVector",
       ]),
     );
-    expect(Object.keys(MongoTypes)).toHaveLength(0);
-  });
-
-  test("BSONJavaScript include requires allowUnsafeTypes", () => {
-    const s = createSerializer();
-    expect(() =>
-      registerMongoDBTypes(s.registry, { include: ["BSONJavaScript"] }),
-    ).toThrow(/allowUnsafeTypes/);
-
-    const unsafe = new TASON.Serializer({ allowUnsafeTypes: true, indent: false });
-    expect(() =>
-      registerMongoDBTypes(unsafe.registry, { include: ["BSONJavaScript"] }),
-    ).not.toThrow();
-  });
-
-  test("wired TypeInfo uses asDefault when requested", () => {
-    class FakeOid {
-      readonly hex: string;
-      constructor(hex: string) {
-        this.hex = hex;
-      }
-    }
-    const oidInfo: TASONTypeInfo<FakeOid> = {
-      kind: "scalar",
-      ctor: FakeOid,
-      serialize: (v) => v.hex,
-    };
-    const prev = MongoTypes.ObjectId;
-    MongoTypes.ObjectId = oidInfo;
-    try {
-      const s = createSerializer();
-      registerMongoDBTypes(s.registry, { include: ["ObjectId"] });
-      expect(s.registry.getDefaultType("ObjectId")!.ctor).toBe(FakeOid);
-      expect(s.parse(`ObjectId("6670f391dcb0bd791cb3bd18")`)).toBeInstanceOf(
-        FakeOid,
-      );
-    } finally {
-      if (prev) MongoTypes.ObjectId = prev;
-      else delete MongoTypes.ObjectId;
-    }
+    expect(
+      MongoTypeCatalog.find((spec) => spec.typeName === "Buffer"),
+    ).toMatchObject({ strategy: "append", canReplaceDefault: true });
+    expect(
+      MongoTypeCatalog.find((spec) => spec.typeName === "BSONVector"),
+    ).toMatchObject({ strategy: "new" });
+    expect(
+      MongoTypeCatalog.find((spec) => spec.typeName === "BSONVector"),
+    ).not.toHaveProperty("canReplaceDefault");
   });
 });

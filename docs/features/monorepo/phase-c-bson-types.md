@@ -2,7 +2,7 @@
 
 > 进度：[implementation-plan.md](./implementation-plan.md) · 用语：[glossary.md](../glossary.md)  
 > 依据：[BSON Types](https://www.mongodb.com/docs/manual/reference/bson-types/) · [bsonspec](https://bsonspec.org/spec.html) · `bson` 6.x  
-> 表 2 / 3：TypeName ↔ BSON / JS 对象（含核心已实现的对应类型）。本包 TypeInfo 未填前，标注「本包」的行不生效。  
+> 表 2 / 3：TypeName ↔ BSON / JS 对象。§5：驱动 `promote*` / `useBigInt64` 与 `replaceDefault` / Handling 的 ser/de 矩阵及测试覆盖。C1 / C2 / C3 均已填。  
 > 命名：仅 BSON 内部语义以 `BSON` 开头；`ObjectId` / `UUID` / `MD5` / 数字 / `Buffer` 不加前缀。实施分 C1 / C2 / C3，见 [implementation-plan](./implementation-plan.md)。
 
 ---
@@ -51,7 +51,7 @@ ctor 均为 `bson.Binary`，仅 UUID 是子类。靠 `match(sub_type)` 选型。
 | 6 | CSFLE 密文 | `BSONEncrypted` | `Binary` | 新 |
 | 7 | 压缩列（引擎内部） | `Buffer` | `Binary` | 追加 |
 | 8 | 敏感载荷 | `BSONSensitive` | `Binary` | 新 |
-| 9 | 向量 | `BSONVector` | `Binary` | 新；ObjectType |
+| 9 | 向量 | `BSONVector` | `Binary` | 新；ObjectType `{ dtype, values }`；`dtype` 为 `"int8"` / `"float32"` / `"packedBit"`；`packedBit` 可带 `padding`（0–7，默认 0） |
 | 128–255 | 用户子类型 | `Buffer` | `Binary` | 追加；要独立名则自备 `match` |
 
 `Buffer` 的 Mongo `match` **必须排除** 3/4/5/6/8/9。
@@ -222,3 +222,76 @@ TypeInstance  TypeName(arg)
 共用基类    先 match 拆成不同 TypeName         文本里的 TypeName 已决定
             Binary(6) → BSONEncrypted          BSONEncrypted(...) → Binary(6)
 ```
+
+---
+
+## 5. 选项行为矩阵
+
+表 2 / 3 是 TypeName ↔ 对象。本节是 **驱动读选项** 与 **本包 / Handling** 交叉后的 ser/de。用户说明见 [包 README](../../../packages/tason-mongodb/README.md)。
+
+两层不要混：
+
+1. `bson.deserialize` 的 `promoteValues` / `promoteLongs` / `useBigInt64` / `promoteBuffers` 决定 stringify **输入**是什么。
+2. `replaceDefaultImplementation` 只改 parse 的 `types[0]`。核心 Number Handling **只拆 / 只裸写核心数值包装**；`bson.Long` 等不是核心包装。
+
+### 5.1 驱动读出 → stringify
+
+默认：`promoteValues: true`，`promoteLongs: true`，`useBigInt64: false`，`promoteBuffers: false`。已 register，Handling 默认。
+
+| BSON | 驱动选项 | JS 值 | stringify |
+| --- | --- | --- | --- |
+| int | `promoteValues` 开 / 关 | `number` / `bson.Int32` | `42` / `Int32("42")` |
+| double | `promoteValues` 开 / 关 | `number` / `bson.Double` | `1.5` / `Float64("1.5")` |
+| long 安全 | `promoteLongs` 开 / 关 | `number` / `bson.Long` | `1` / `Int64("1")` |
+| long 超安全整数 | 未开 `useBigInt64` | `bson.Long` | `Int64("…")` |
+| long | `useBigInt64: true` | `bigint` | 安全裸数字；超出 → `BigInt("…")` |
+| decimal | （不提升） | `bson.Decimal128` | `Decimal128("…")` |
+| objectId / timestamp / min·max | — | 对应类 | `ObjectId` / `BSONTimestamp` / `BSONMinKey` / `BSONMaxKey` |
+| binData 通用 | `promoteBuffers` 关 / 开 | `Binary` / Node `Buffer` | 均为 `Buffer("base64,…")` |
+| binData 3/4 | `promoteBuffers` 关 | `UUID` / `Binary` | `UUID("…")` |
+| binData 5/6/8/9 | `promoteBuffers` 关 | `Binary` | `MD5` / `BSONEncrypted` / `BSONSensitive` / `BSONVector` |
+| 上表专用 subtype | `promoteBuffers` 开 | Node `Buffer` | `Buffer(...)`，丢失 subtype |
+
+`useBigInt64` 与 `promoteValues: false` 或 `promoteLongs: false` 组合时 **bson 抛错**（不是本包行为）。
+
+### 5.2 parse：`replaceDefault` × `deserializeNumberHandling`
+
+| TypeName | replaceDefault | Handling | parse 结果 |
+| --- | --- | --- | --- |
+| `Int64` | 关 | `native` / 默认 | `bigint` |
+| `Int64` | 关 | `all` | 核心 `Int64` |
+| `Int64` | 开 | **任意** | `bson.Long` |
+| `Int32` | 关 / 关 / 开 | native·默认 / `all` / 任意 | `number` / 核心 `Int32` / `bson.Int32` |
+| `Float64` | 同上 | | `number` / 核心 `Float64` / `bson.Double` |
+| `Decimal128` | 关 / 关 / 开 | native·默认 / `all` / 任意 | `Decimal` / 核心 `Decimal128` / `bson.Decimal128` |
+| `UUID` / `Buffer` | 关 / 开 | — | 核心类 / `bson.UUID`、`Binary`(0) |
+| 新 TypeName | — | — | 对应 bson 类 |
+
+`object-fallback-*` 在值级路径与 `native` 相同（无 OT / 无契约）。
+
+### 5.3 stringify bson 数值类 × `serializeNumberHandling`
+
+| 值 | `unsafe-only` | `all` | `none` |
+| --- | --- | --- | --- |
+| `bson.Long` / `Int32` / `Double` / `Decimal128` | TypeName（安全整数也装箱） | TypeName | **抛**（`trySerializeNumberAsLiteral` 不认 bson 类） |
+| 核心数值包装 | 安全则裸写 | TypeName | 强制裸写 |
+| 已提升 `number` / `bigint` | 核心 Handling | 核心 Handling | 核心 Handling |
+| 非数值 bson 类 | TypeName | TypeName | TypeName |
+
+不要在本包测试里抄核心 N1–N8 全矩阵；只固定上表与驱动选项交叉。
+
+### 5.4 测试覆盖
+
+| 编号 | 场景 | 文件 |
+| --- | --- | --- |
+| M1 | `replaceDefault` 全开 / 按名 | `options.test.ts` |
+| M2 | `parseAs(Long)` / `parseAs(Binary, MD5)` | `options.test.ts` |
+| M3 | `include` / `allowUnsafeTypes` | `options.test.ts` |
+| M4 | `promoteLongs`：安全整数字面量 vs `Long` → `Int64` | `options.test.ts` |
+| M5 | `promoteBuffers`：通用仍 `Buffer`；MD5 丢失 subtype | `options.test.ts` |
+| M6 | Handling × bson 数值类：默认装箱；`none` 抛；`de:all` 无 replace 仍核心包装；replace 后 Handling 不拆 | `options.test.ts` |
+| M7 | `promoteValues: false` 的 Int32/Double；`useBigInt64` 的安全 / 超范围 long | `options.test.ts` |
+| T1–Tn | 各 TypeName 默认 parse / stringify（含 Binary 选型） | `types.test.ts` |
+| R1 | catalog / Buffer 追加实现 | `register.test.ts` |
+
+不在本包测：核心 Handling 全类型矩阵（`number-handling.test.ts`）；真实驱动 / mongoose（C 集成，需额外环境）。

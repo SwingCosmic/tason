@@ -44,7 +44,7 @@
 | Number Handling 语义、ClassMetadata 模型 | [runtime-type/runtime-type-design.md](./runtime-type/runtime-type-design.md) |
 | `asDefault` / `parseAs` / `getTypeInfoByCtor` | [runtime-type/phase-3-duck-types.md](./runtime-type/phase-3-duck-types.md) |
 | `registerMongoDBTypes`、`replaceDefaultImplementation`、扩展包约定 | [monorepo/implementation-plan.md](./monorepo/implementation-plan.md) |
-| 官方 BSON 清单与 ser/de 映射 | [monorepo/phase-c-bson-types.md](./monorepo/phase-c-bson-types.md) |
+| 官方 BSON 清单、ser/de 映射、选项行为矩阵 | [monorepo/phase-c-bson-types.md](./monorepo/phase-c-bson-types.md) |
 | `toDocument` / `fromDocument`、`_t` 语义 | [polymorphic-persistence/design.md](./polymorphic-persistence/design.md) |
 
 职责边界可以在相邻 feature 里各写一句（例如「`tason-mongodb` 不做对象打标」），但不要互相抄阶段表。

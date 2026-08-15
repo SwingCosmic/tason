@@ -92,6 +92,7 @@ const v = keep.parse(`Int64("42")`); // Int64 实例，而非 bigint
 | 文本尽量自描述类型名（跨语言互操作） | 序列化用 `all` 或 `object-type-property` |
 | 下游只接受 JSON 数字 | 序列化用 `none`（注意超大数） |
 | 需要操作包装类本身 | 反序列化用 `all`（此时不会按 schema 改写类型） |
+| 手里是 `bson.Long` / `Int32` 等 | Handling **不会**把它们拆成字面量；`none` 会抛。要裸数字请让驱动 `promoteLongs` / `promoteValues` / `useBigInt64`。见 [`tason-mongodb` README](../packages/tason-mongodb/README.md) |
 
 ---
 
