@@ -2,7 +2,7 @@
 
 > **状态：已完成**  
 > 进度入口：[implementation-plan.md](./implementation-plan.md) · 设计：[runtime-type-design.md](./runtime-type-design.md)  
-> 用语：[README 概念对照](./README.md#概念对照读本文档前)
+> 用语：[术语与用语](../glossary.md)
 
 ---
 
@@ -13,7 +13,7 @@
 本阶段**不**实现：
 
 - `ClassMetadata.schema`
-- 按字段契约收值 / 写出  
+- 按字段契约转换 / 写出
 - 反序列化 `object-fallback-*` / 序列化 `object-type-property` 的「实体内」语义（见下方降级）
 
 本阶段**要**实现：
@@ -37,7 +37,7 @@
 | deserialize `object-fallback-native` | **降级为 `native`**（尚无 schema 契约路径） |
 | deserialize `object-fallback-all` | **降级为 `native`**（无 OT 上下文时） |
 
-> 阶段 2 接通 schema / ObjectType 上下文后，`object-fallback-*` 恢复设计语义；阶段 1 降级由测试钉死。
+> 阶段 2 接上 schema / ObjectType 上下文后，`object-fallback-*` 恢复设计语义；阶段 1 的降级行为由测试固定。
 
 ---
 
@@ -67,7 +67,7 @@
 | `Decimal` / `Decimal128` | 可无损为 number 则裸，否则 TypeName | TypeName | **强制**十进制文本（含超精度） |
 | 非数值 | 既有逻辑 | 既有逻辑 | 既有逻辑 |
 
-`NaN` / `±Infinity`：保持既有行为（本阶段不扩大 scope）。
+`NaN` / `±Infinity`：保持既有行为（本阶段不扩大范围）。
 
 ---
 
@@ -103,7 +103,7 @@
 
 - [x] 双选项进入公开 API，默认值正确  
 - [x] 无 schema 时拆箱/写出行为符合 §1.2–1.3  
-- [x] ser `object-type-property` / de `object-fallback-*` 降级有测试钉死  
+- [x] 序列化 `object-type-property` / 反序列化 `object-fallback-*` 的降级行为有测试覆盖
 - [x] 既有 parse/stringify 测试已按默认拆箱更新  
 - [x] **不**引入 schema 库依赖  
 
@@ -111,5 +111,5 @@
 
 ## 后续
 
-阶段 2 在阶段 1 值级路径之上接通 ClassMetadata / schema：  
+阶段 2 在阶段 1 的值级路径之上接上 ClassMetadata / schema：  
 → [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md)

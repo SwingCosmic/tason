@@ -56,7 +56,7 @@ const u = TASON.parse<User>(`User({ id: Int64("1"), name: "Ada" })`);
 | `registry.setSchemaAdapter(adapter \| null)` | 注册 / 替换 / 清除适配器 |
 | `registry.getSchemaAdapter()` | 当前适配器 |
 | `createValibotAdapter()` | 官方 Valibot 实现（包根导出；**不会**自动注册） |
-| `registerType(name, typeInfo, metadata?)` | 第三参含 `schema` |
+| `registerType(name, typeInfo, metadata?, options?)` | 第三参含 `schema`；第四参 `{ asDefault?: boolean }` 见 [类型系统 · 多实现](./type-system.md#同一-typename-的多种实现) |
 | `getClassMetadata(name)` | 读取整包元数据（无单独的 `getSchema`） |
 
 ```ts

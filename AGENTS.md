@@ -26,20 +26,21 @@
 | [docs/number-handling.md](./docs/number-handling.md) | 数值处理（使用） |
 | [docs/class-metadata.md](./docs/class-metadata.md) | 实体 Schema（使用） |
 | [docs/regexp.md](./docs/regexp.md) | RegExp |
-| [packages/tason-mongodb/README.md](./packages/tason-mongodb/README.md) | Mongo 扩展（脚手架，实现待定） |
+| [packages/tason-mongodb/README.md](./packages/tason-mongodb/README.md) | Mongo 扩展（注册骨架已就绪；P0 类型待阶段 C） |
 
 **实现资料（设计/进度，对内；勿链进用户 README 当手册）：**
 
 | 路径 | 用途 |
 | --- | --- |
+| [docs/features/glossary.md](./docs/features/glossary.md) | 术语与用语（RuntimeType / TypeName / 字面量 / 鸭子类型） |
 | [docs/features/runtime-type/](./docs/features/runtime-type/) | 当前 feature 包 |
-| ↳ [README.md](./docs/features/runtime-type/README.md) | 概念对照 |
 | ↳ [implementation-plan.md](./docs/features/runtime-type/implementation-plan.md) | 进度 + 固定决策 |
 | ↳ design / phase-1 / phase-2 / phase-3 | 设计与分阶段任务 |
 | [docs/features/monorepo/](./docs/features/monorepo/) | Workspaces · 扩展包约定 · `tason-mongodb` |
-| [docs/features/polymorphic-persistence/](./docs/features/polymorphic-persistence/) | 文档 `_t` 中间层（与 BSON 标量包分列） |
+| [docs/features/polymorphic-persistence/](./docs/features/polymorphic-persistence/) | 文档 `_t` 中间层（与 BSON 标量包分开维护） |
 
-用户向文档只写**怎么用**；方案与排期只放在 `docs/features/`。
+三个 feature 的进度各自独立，归属与交叉引用约定见 [docs/features/README.md](./docs/features/README.md)。  
+面向用户的文档只写**怎么用**；方案与排期只放在 `docs/features/`。
 
 ---
 
@@ -58,6 +59,7 @@ yarn workspace tason-mongodb build
 # 在 packages/tason 下也可：
 npx jest --testPathPattern=number-handling
 npx jest --testPathPattern=runtime-schema
+npx jest --testPathPattern=multi-implementation
 ```
 
 - 路径别名（核心包）：`@/*` → `packages/tason/src/*`。
@@ -87,12 +89,12 @@ tason/                          # 仓库根（private monorepo）
       lib/            # build 输出，勿手改
     tason-mongodb/              # npm: tason-mongodb（BSON 标量扩展）
       package.json              # peer: tason, bson
-      src/                      # 脚手架占位；类型实现未开工
+      src/                      # registerMongoDBTypes + MongoTypes 表；TypeInfo 待阶段 C
       test/
       lib/
 ```
 
-**模块边界（摘要）：** Schema 只描述 RuntimeType；Registry 管 TypeName ↔ 实现；Handling 管装箱/拆箱策略；`types/` 只放核心内置实现。Mongo/BSON **不进** 核心默认表。对象图 `_t` 中间层 **不进** `tason-mongodb`。细则见 [runtime-type README](./docs/features/runtime-type/README.md) 与 [monorepo plan](./docs/features/monorepo/implementation-plan.md)。
+**模块边界（摘要）：** Schema 只描述 RuntimeType；Registry 管 TypeName ↔ 实现；Handling 管装箱/拆箱策略；`types/` 只放核心内置实现。Mongo/BSON **不进** 核心默认表。对象图 `_t` 中间层 **不进** `tason-mongodb`。用语见 [glossary](./docs/features/glossary.md)；包边界见 [monorepo plan](./docs/features/monorepo/implementation-plan.md)。
 
 ---
 
@@ -102,11 +104,11 @@ tason/                          # 仓库根（private monorepo）
 
 | 主题 | 文档 |
 | --- | --- |
-| RuntimeType / Schema / TypeName / TypeInstance / 字面量保真 | [runtime-type/README.md](./docs/features/runtime-type/README.md) |
+| RuntimeType / Schema / TypeName / TypeInstance / 字面量 / 鸭子类型 | [glossary.md](./docs/features/glossary.md) |
 | 设计总览 | [runtime-type-design.md](./docs/features/runtime-type/runtime-type-design.md) |
 | 序列化/反序列化 Number Handling（选项名、默认值、ser/de 不对称） | [phase-1](./docs/features/runtime-type/phase-1-number-handling.md) · 设计 §3 · 代码 `packages/tason/src/types/NumberHandling.ts` |
-| ClassMetadata、adapter、契约优先级、结构 walk | [phase-2](./docs/features/runtime-type/phase-2-class-metadata-schema.md) · 代码 `packages/tason/src/schema/`、`metadata/` |
-| 鸭子类型 / `parseAs` | [phase-3](./docs/features/runtime-type/phase-3-duck-types.md) |
+| ClassMetadata、adapter、契约优先级、结构遍历 | [phase-2](./docs/features/runtime-type/phase-2-class-metadata-schema.md) · 代码 `packages/tason/src/schema/`、`metadata/` |
+| 鸭子类型 / 默认实现 / `parseAs` | [phase-3](./docs/features/runtime-type/phase-3-duck-types.md) |
 | 固定决策与范围外 | [implementation-plan.md](./docs/features/runtime-type/implementation-plan.md) |
 | Monorepo / 扩展包 / BSON | [monorepo](./docs/features/monorepo/) |
 | 文档 `_t` / toDocument | [polymorphic-persistence](./docs/features/polymorphic-persistence/) |
@@ -128,24 +130,26 @@ tason/                          # 仓库根（private monorepo）
 | 文件（相对 `packages/tason/test/`） | 职责 |
 | --- | --- |
 | `number-handling.test.ts` | 纯 Number Handling（值级矩阵；OT 仅最简 schema） |
-| `runtime-schema.test.ts` | 纯 schema / ClassMetadata / 结构 walk / builtin |
+| `runtime-schema.test.ts` | 纯 schema / ClassMetadata / 结构遍历 / builtin |
 | `symbol-edge.test.ts` | Symbol 边界 |
+| `multi-implementation.test.ts` | 默认实现 / `parseAs` / clone（D0–D7） |
 | `parse*.test.ts` / `stringify*.test.ts` | 语法与基础 ser/de |
-| `packages/tason-mongodb/test/` | BSON 扩展（实现后；勿把全量核心矩阵抄过去） |
+| `packages/tason-mongodb/test/` | 注册骨架 + 日后 BSON 类型（勿把全量核心矩阵抄过去） |
 
 - **不要**再拆重复 suite（如已删除的 builtins 独立文件）；数值矩阵与 schema 结构测试勿互相抄全量。
 - **用例标题**：对象 + 模式/行为；复杂逻辑写行内注释，不写进标题、不写期望结果清单。
 - 契约用例须显式 `setSchemaAdapter(createValibotAdapter())`。
-- 改 Handling / Visitor / Generator / schema 后至少跑 `number-handling` 与 `runtime-schema`。
+- 改 Handling / Visitor / Generator / schema / Registry 默认实现 后至少跑 `number-handling`、`runtime-schema` 与 `multi-implementation`。
 
 ---
 
 ## 7. 文档约定
 
 - Feature 文档放在 `docs/features/<name>/`，不要堆在 `features/` 根下。
-- runtime-type：**概念**只在 README 概念对照维护；**进度**只在 implementation-plan；分册写细节。
+- 三个 feature **进度各自独立**；归属与交叉引用约定见 [docs/features/README.md](./docs/features/README.md)。不要把另一个 feature 的阶段勾进自己的 plan。
+- **概念 / 用语**只在 [docs/features/glossary.md](./docs/features/glossary.md) 维护（含鸭子类型与代码标识符）；**进度**只在各 feature 自己的 implementation-plan；分册写细节。
 - 行为与文档冲突时：以 **代码 + feature 文档** 为准，并同步文档；**不要**把决策抄进本 AGENTS 当第二真相源。
-- 中文文档为主；标识符 / 选项 / TypeName 保持英文原样。
+- 中文文档为主；标识符 / 选项 / TypeName 保持英文原样。专业术语不必强行翻译。避免无限定的机械译（如单独写「冒烟」「水合」）。
 
 ---
 
@@ -154,12 +158,12 @@ tason/                          # 仓库根（private monorepo）
 1. 先读对应 feature 文档与 C# 参考，再改实现；细节不进本文件。
 2. 公开 API 变更同步 `packages/tason/src/index.ts`（及扩展包入口）与 feature 文档；进度变更更新对应 implementation-plan。
 3. 勿手改 ANTLR 生成逻辑意图；改 `TASON.g4` 后 `yarn generate`。勿改各包 `lib/`。
-4. 勿顺手大重构无关文件；阶段边界以 plan 为准（例如未进入阶段 3 时不要偷偷上鸭子选型；`tason-mongodb` 不做 `_t` 打标）。
+4. 勿顺手大重构无关文件；阶段边界以**该 feature 自己的** plan 为准（runtime-type 已完成；`tason-mongodb` 的 TypeInfo 在 monorepo 阶段 C 填，且不做 `_t` 打标）。
 5. 曾反复踩过、且易在「未读分册」时再犯的点（**细节见 phase 文档**）：
    - 有 schema 契约时与 `object-fallback-*` / OT 上下文的优先级（phase-2）
    - ser/de 选项命名不对称是故意的（phase-1 / 设计）
    - 同质大数组避免 per-element 重复 schema introspect（phase-2）
-   - 字面量保真、安全整数不静默截断（README 概念对照 · phase-2 矩阵）
+   - 字面量含义、安全整数不静默截断（[glossary](./docs/features/glossary.md) · phase-2 矩阵）
    - 无 `setSchemaAdapter` 则契约不生效
    - 双份 `bson` 导致 `instanceof` 失效（Mongo 扩展）
 

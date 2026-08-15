@@ -194,3 +194,18 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
 * ❌ 类的静态成员和非公共成员: 按语义不支持。也不会提供选项来控制序列化私有字段，请使用公共属性进行暴露，或者提供自定义序列化方法
 * ❌ 循环引用: 序列化循环引用往往会带来各种性能和安全问题，而且需要额外的语法调整，因此不支持。
 * ❌ 支持弱引用的类型，如js和Java的`WeakMap`, `WeakSet`: 为了避免影响GC，这些类型都无法枚举，因此无法得到需要序列化的内容
+
+## 同一 TypeName 的多种实现
+
+同一 TypeName 可挂多个 JavaScript 实现（例如核心 `Int64` 包装与日后的 `bson.Long`）：
+
+- 再 `registerType` 同名 = **追加类型实现**（`stringify` 认实例；`parse` 仍用当前默认）。
+- `registerType(..., { asDefault: true })` / `setDefaultType` 可更换默认实现。
+- 单次选型用 `parseAs(ctor | TypeName, text)`，不改变全局默认。
+
+扩展包（如 [`tason-mongodb`](../packages/tason-mongodb/README.md)）通过 `registerMongoDBTypes` 使用上述 API；BSON 类型实现见该包 README。
+
+## 扩展类型
+
+核心默认表不含 MongoDB / BSON。需要 `ObjectId` 等 TypeName 时安装 `tason-mongodb` 并 `registerMongoDBTypes(registry)`。  
+对象图写入文档时的 `_t` 打标 **不属于** 该扩展包，见实现资料 `docs/features/polymorphic-persistence/`。

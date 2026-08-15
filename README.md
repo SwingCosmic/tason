@@ -85,7 +85,7 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 | 包 | 目录 | 说明 |
 | --- | --- | --- |
 | [`tason`](packages/tason) | `packages/tason` | 核心序列化（npm 包名不变） |
-| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展（脚手架；实现待定） |
+| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展（注册骨架已就绪；P0 类型待实现） |
 
 贡献者请在仓库根执行 `yarn install` / `yarn build` / `yarn test`。发布从各包目录进行。
 
@@ -106,7 +106,9 @@ yarn add tason
 pnpm add tason
 ```
 
-MongoDB `ObjectId` 等 BSON 类型需额外包 `tason-mongodb`（**尚未实现**；见 [packages/tason-mongodb](packages/tason-mongodb)）。
+MongoDB `ObjectId` 等 BSON 类型需额外包 [`tason-mongodb`](packages/tason-mongodb)（注册 API 已就绪，类型实现尚未填入；见该包 README）。
+
+同一 TypeName 可挂多种实现，并用 `parseAs` 单次选型，见 [类型系统](docs/type-system.md#同一-typename-的多种实现)。
 
 `tason` 仅支持 ESM：前端需打包器（Vite、webpack 等）；Node.js 需原生 ESM。
 

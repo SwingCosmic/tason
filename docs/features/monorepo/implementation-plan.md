@@ -1,8 +1,11 @@
 # Monorepo 与 MongoDB 扩展包 — 实施计划
 
-> **状态：阶段 A + B 脚手架已落地；类型实现与后续阶段待细化**  
+> **状态：阶段 A + B 已完成；P0 类型实现（阶段 C）待开工**  
 > 概念入口：[README.md](./README.md)  
 > 姊妹实现：`E:\dev\VS2022\tason-net`（`TASON` + `TASON.Types.*` + `TASON.AspNetCore`）
+
+本文件只跟踪 **仓库结构** 与 **`tason-mongodb`**。  
+核心 `asDefault` / `parseAs`、文档 `_t` 的进度不在这里勾选。
 
 ---
 
@@ -21,10 +24,10 @@
 | --- | --- |
 | 改 TASON 语法 / ANTLR | 扩展只注册 TypeName，不改 `TASON.g4` |
 | 在核心内置 ObjectId | 避免核心依赖 `bson` / `mongodb` |
-| 完整 MongoDB 驱动封装 | 只做 **TASON TypeName ↔ BSON 值** 的 ser/de |
-| **对象图 `_t` 打标 / toDocument / fromDocument** | **禁止** 放进 `tason-mongodb`；见 [polymorphic-persistence](../polymorphic-persistence/)（TASON 中间层） |
+| 完整 MongoDB 驱动封装 | 只做 **TASON TypeName ↔ BSON 值** 的序列化 / 反序列化 |
+| **对象图 `_t` / toDocument / fromDocument** | **禁止** 放进 `tason-mongodb`。语义见 [polymorphic-persistence](../polymorphic-persistence/)（职责划分，不是本 plan 的前置） |
 | 一次迁完所有未来扩展 | 只落地 MongoDB 包；约定留好即可（JSON 库扩展、AspNet 对等物等后续） |
-| 强依赖阶段 3 完成后再写类型 | **是**：核心 [phase-3](../runtime-type/phase-3-duck-types.md) DoD 后再实现注册逻辑 |
+| 核心多实现 / schema 语义 | 不在本 plan 实现。`replaceDefaultImplementation` 使用核心已有的 `asDefault` 等 API |
 | Turborepo / Nx / Changesets 一上来全套 | 首期 workspaces + 脚本即可；发布编排可二期 |
 
 ---
@@ -35,15 +38,15 @@
 
 | 项 | 当前 |
 | --- | --- |
-| 包 | 单包 `tason@1.1.x`，源码 `src/`，产物 `lib/`，测试 `test/` |
-| 工具 | Yarn Classic（1.22）、`tsc` + `tsc-alias`、Jest、`@/*` → `src/*` |
-| 扩展点 | `TASONTypeRegistry.registerType` / `registerTypeAlias`；构造时注入 `Types` 内置表 |
-| 内置类型 | 数字、Date*、RegExp、UUID、Buffer、JSON*、Dictionary 等（见 `src/types/`） |
-| 用户示例 | README 已写 `ObjectId("…")`，**核心尚无实现** |
+| 包 | Yarn Workspaces：`packages/tason` + `packages/tason-mongodb` |
+| 工具 | Yarn Classic（1.22）、`tsc` + `tsc-alias`、Jest、核心 `@/*` → `src/*` |
+| 扩展点 | `registerType` / `asDefault` / `setDefaultType*` / `parseAs`；扩展包 `registerMongoDBTypes` |
+| 内置类型 | 数字、Date*、RegExp、UUID、Buffer、JSON*、Dictionary 等（见 `packages/tason/src/types/`） |
+| Mongo | 注册骨架已落地；`MongoTypes` 空表；P0 TypeInfo 未填 |
 
 ### 1.2 为何 monorepo 而不是多仓库
 
-- 扩展包与核心 **同版语义对齐** 频繁（TypeInfo 形状、Registry API、Handling 选项）。
+- 扩展包与核心需要经常对齐同一套语义（TypeInfo 形状、Registry API、Handling 选项）。
 - 共享 `docs/`、CI、测试夹具；一次 PR 可同时改 core + extension。
 - 对照 C#：同一 solution 多 project，而非拆成多个 git 仓库。
 
@@ -144,8 +147,8 @@ tason/                          # git 仓库根
 
 | 依赖 | 规则 |
 | --- | --- |
-| `tason` | **peerDependency**（版本区间与核心 semver 对齐，如 `^1.1.0`）；devDependency 钉工作区内协议便于联调 |
-| 领域库（如 `bson`） | **peerDependency**（可选/必选写清）；扩展包不强制用户装完整 `mongodb` 驱动，优先 `bson` |
+| `tason` | **peerDependency**（版本区间与核心 semver 对齐，如 `^1.1.0`）；devDependency 用 workspace 协议引用，方便联调 |
+| 领域库（如 `bson`） | **peerDependency**（可选 / 必选写清）；扩展包不强制用户装完整 `mongodb` 驱动，优先 `bson` |
 | 核心内部路径 | **禁止** `tason/lib/...` 深路径；只依赖公开 API（`defineType`、`TASONTypeRegistry`、类型导出） |
 
 ### 3.2 公开 API 形状（推荐）
@@ -187,7 +190,7 @@ export type RegisterMongoDBTypesOptions = {
 };
 ```
 
-**用法（用户向，落地后写入包 README）：**
+**用法（落地后写入包 README）：**
 
 ```ts
 import TASON from "tason";
@@ -199,7 +202,7 @@ registerMongoDBTypes(s.registry);
 s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 ```
 
-不强制改核心增加 `serializer.use(plugin)`；若后续多扩展需要插件链，可另开 issue。首期 **函数式注册** 足够，且与 C# 扩展方法同构。
+不强制改核心增加 `serializer.use(plugin)`；若后续多扩展需要插件链，可另开 issue。首期 **函数式注册** 足够，也和 C# 扩展方法同一结构。
 
 ### 3.3 注册策略
 
@@ -207,11 +210,11 @@ s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 | --- | --- |
 | **新增 TypeName** | 如 `ObjectId`、`MinKey`：`registerType` 即可 |
 | **追加类型实现（挂到已有 TypeName）** | 如 bson `Long` → `Int64`：`registerType("Int64", longTypeInfo)`（push）。parse **仍 core 默认**；stringify 时 `instanceof` 命中 |
-| **替换默认实现（推荐 Mongo 优先）** | 核心 [phase-3](../runtime-type/phase-3-duck-types.md)：`asDefault` / `setDefaultType`；选项 **`replaceDefaultImplementation`**。parse `Int64("…")` → `bson.Long` |
+| **替换默认实现（推荐 Mongo 优先）** | 核心 `asDefault` / `setDefaultType`；本包选项 **`replaceDefaultImplementation`**。parse `Int64("…")` → `bson.Long` |
 | **别名** | 如需要 `Long` 作为独立 TypeName：`registerTypeAlias` 或单独 scalar（**二选一**，避免双语义） |
 | **幂等** | 文档约定「同一 registry 只 register 一次」 |
 
-与 [phase-3-duck-types](../runtime-type/phase-3-duck-types.md) 的关系（**阶段 3 在 Mongo 类型实现前整包完成**）：
+本包用到的核心 API（语义以 runtime-type 为准，进度不在本文件勾选）：
 
 | 能力 | 核心 API | Mongo 用法 |
 | --- | --- | --- |
@@ -219,7 +222,7 @@ s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 | 替换默认实现 | `asDefault` / `setDefaultType` | **`replaceDefaultImplementation`** |
 | 单次选型 | `parseAs` / `getTypeInfoByCtor` | 应用层可选；包内不强制 |
 
-**阶段 3 DoD 完成后再实现** `tason-mongodb` 类型注册逻辑。
+`registerMongoDBTypes` 骨架已按此 API 落地。**TypeInfo 仍待阶段 C** 填入 `MongoTypes`。
 
 ### 3.4 核心需保证的公开导出（迁包时核对）
 
@@ -263,15 +266,15 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | Schema 声明为 `BigInt` 的字段 | **靠核心** | 值是 `bigint`，用核心 number handling / Int64，不必 Mongo Long 的追加类型实现 |
 | 双份 `bson`（nested node_modules） | **易失效** | `instanceof` 失败 → stringify 认不出、parse 出的类驱动不认。**强制 peer `bson`，文档要求与 `mongodb`/`mongoose` 对齐版本** |
 | 插件自定义 SchemaType 但值仍是 bson 类 | **能** | 与 mongoose-long 同模式 |
-| 插件自造 **非 bson** 的包装类 | **默认不能** | 需再追加类型实现或适配；本包不承诺扫插件 |
+| 插件自造 **非 bson** 的包装类 | **默认不能** | 需再追加类型实现或适配；本包不承诺兼容所有插件 |
 
 **设计推论（固定）：**
 
 1. TypeInfo 的 `ctor` **优先使用 `bson` 包导出**（`ObjectId`、`Long`、`Decimal128`…），不要自建平行类。  
 2. `peerDependencies`：`bson`（及文档说明：与项目中 `mongodb` / `mongoose` 解析到的 bson 一致）。可选说明也可 `import { Long } from "mongodb"`，但 monorepo 实现侧统一从 `bson` import，避免分叉。  
-3. **不为 mongoose-long 写专用适配**；兼容其文档字段 = 兼容 `bson.Long`。  
-4. README 写清：对 Mongoose 先 `toObject({ flattenMaps: true })` 等再 TASON；BigInt Schema ≠ Long 的追加类型实现。  
-5. 双包危害写进风险表与测试：可用集成测「从 mongoose 取出的 ObjectId 能被 registry 认出」。
+3. **不为 mongoose-long 写专用适配**；兼容其文档字段就是兼容 `bson.Long`。  
+4. README 写清：对 Mongoose 先 `toObject({ flattenMaps: true })` 等再交给 TASON；BigInt Schema 不是 Long 的追加类型实现。  
+5. 双份 `bson` 的危害写进风险表与测试：可用集成测试验证「从 mongoose 取出的 ObjectId 能被 registry 认出」。
 
 ### 4.1 设计原则
 
@@ -354,15 +357,15 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 **风险：** 历史 git 对 `src/` 的 blame 因移动变模糊 → 可用 `git mv` 保留历史。
 
-### 阶段 A′ — 核心阶段 3（Mongo 类型实现之前）
+### 前置条件（已满足，不属于本 plan）
 
-| # | 任务 |
-| --- | --- |
-| A′.1 | 按 [phase-3 锁定 API](../runtime-type/phase-3-duck-types.md) 实现 `asDefault` / `setDefaultType*` / `getTypeInfoByCtor` / `parseAs` |
-| A′.2 | 测试 `multi-implementation.test.ts`（D0–D7）；clone；builtin 冒烟 |
-| A′.3 | 导出与 phase-3 DoD 勾选 |
+`replaceDefaultImplementation` 需要核心已提供：
 
-**DoD：** phase-3 DoD 全勾；其后才写 `tason-mongodb` 类型注册实现。
+- `registerType(..., { asDefault })`
+- `setDefaultType` / `setDefaultTypeByCtor`
+- `getTypeInfoByCtor` / `parseAs`
+
+这些 API 属于 runtime-type 阶段 3，**进度不在本文件勾选**。当前核心已具备，阶段 B / C 可以直接用。
 
 ### 阶段 B — 扩展约定落地 + MongoDB 骨架
 
@@ -383,7 +386,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | C.1 | `ObjectId` TypeInfo + 测试 M1–M3 |
 | C.2 | `Long` → `Int64` 追加类型实现 + M4–M5；**可选/推荐** `replaceDefaultImplementation.Int64` + 多轮 round-trip |
 | C.3 | `bson.Decimal128` → `Decimal128` 追加类型实现 + M6；同上默认开关 |
-| C.4 | `docs/type-system.md` 增加「扩展类型 / MongoDB」交叉链接（用户向短节或链到包 README） |
+| C.4 | `docs/type-system.md` 增加「扩展类型 / MongoDB」短节，或链到包 README |
 | C.5 | 根 README 示例改为「需 `tason-mongodb`」的明确说明 |
 
 **DoD：** P0 矩阵测试绿；README 示例可复制运行；文档写清默认实现配置。
@@ -397,7 +400,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | D.3 | CI（若有）：matrix 构建两个包；发布 workflow 按 path filter |
 | D.4 | 本 plan 勾选进度；features/README 状态更新 |
 
-**后置（不阻塞首发）：** MinKey/MaxKey、BsonTimestamp 命名、阶段 3 `parseAs` 示例、Changesets。
+**后置（不阻塞首发）：** MinKey/MaxKey、BsonTimestamp 命名、`parseAs` 示例、Changesets。
 
 ---
 
@@ -410,7 +413,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 发布顺序 | 先 core（若有 API 导出补丁），再 mongodb |
 | 锁文件 | 单根 `yarn.lock` |
 
-破坏性：monorepo **本身**对只 `npm i tason` 的用户无影响；仅贡献者克隆路径变化。
+对已发布包的影响：monorepo **本身**对只 `npm i tason` 的用户无影响；仅贡献者克隆后的路径变化。
 
 ---
 
@@ -419,11 +422,11 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 文档 | 变更 |
 | --- | --- |
 | `AGENTS.md` | 源码地图改为 `packages/tason/src`；命令加 `yarn workspace`；扩展包边界一节 |
-| `docs/features/README.md` | 挂上 monorepo feature |
-| `docs/type-system.md` | 「扩展包」短节 + Mongo TypeName 表（或链到 `tason-mongodb` README） |
-| 根 `README.md` | 安装双包示例；ObjectId 依赖说明 |
-| `packages/tason-mongodb/README.md` | **用户向**使用说明（可随 npm 发布） |
-| 本 plan | 进度勾选 |
+| `docs/features/README.md` | 加入 monorepo feature 索引 |
+| `docs/type-system.md` | 「同一 TypeName 的多种实现」+「扩展类型」短节（链到包 README） |
+| 根 `README.md` | 仓库结构；ObjectId 依赖 `tason-mongodb` |
+| `packages/tason-mongodb/README.md` | 面向用户的使用说明（注册骨架；类型待阶段 C） |
+| 本 plan | 进度勾选（A / B 已完成） |
 
 用户文档只写 **怎么用**；目录迁移细节与排期只留在本 feature 包。
 
@@ -438,8 +441,8 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 5. **不覆盖** 核心 `Timestamp`（毫秒）语义。  
 6. Mongo 类型 **不进** `packages/tason/src/types` 默认表。  
 7. `docs/` 留在仓库根；feature 进度在 `docs/features/monorepo/`。  
-8. Mongo 类型实现依赖核心 **阶段 3 DoD**；包选项名 **`replaceDefaultImplementation`**。  
-9. 仅追加类型实现、不改默认：`registerType` push；Mongo 优先应用应开 `replaceDefaultImplementation`。
+8. Mongo 类型实现使用核心已有的 `asDefault` 等 API；包选项名 **`replaceDefaultImplementation`**。  
+9. 仅追加类型实现、不改默认：`registerType` push；Mongo 优先的应用应打开 `replaceDefaultImplementation`。
 
 ---
 
@@ -447,14 +450,14 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 | 风险 | 缓解 |
 | --- | --- |
-| 路径别名 / jest 迁包后挂 | 阶段 A 先只迁 core，测试全绿再开 B |
+| 路径别名 / jest 迁包后失效 | 阶段 A 先只迁 core，测试全绿再开 B |
 | 扩展 import 不到 `defineType` | B.1 导出审计 |
 | `Decimal128` / `UUID` 双实现混淆 | 文档写清默认 parse vs 追加类型实现后的 stringify；测试 M5 |
 | BSON Timestamp 与核心 Timestamp | 禁止同名覆盖；P2 另名 |
 | 发布配错 `files` / 主入口 | 每包独立 `files: ["lib"]` + 本地 pack 检查 |
 | Yarn Classic workspaces 与 peer | 用 devDependency 链到 workspace 协议 `tason@*` 联调 |
 | 双份 `bson` 导致 `instanceof` 失败 | peer + 文档对齐版本；测试 M8；勿在包内 bundle bson |
-| 用户 stringify 整个 Mongoose Document | 文档要求 `toObject`/`lean`；不把 Document 当 plain object 承诺 |
+| 用户 stringify 整个 Mongoose Document | 文档要求 `toObject` / `lean`；不要承诺可以把 Document 当 plain object |
 | Schema `BigInt` vs `Long` 混淆 | 文档对照表：bigint 走核心，Long 走 Mongo 包 |
 
 ---
@@ -472,26 +475,24 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 - [x] A.7 AGENTS / README
 - [x] A.8 发布路径备忘（`packages/<name>` 下 publish；见 AGENTS §2）
 
-### 阶段 A′ — 核心阶段 3
+### 前置条件
 
-- [ ] A′.1 锁定 API 实现（见 phase-3）
-- [ ] A′.2 测试 D0–D7 + clone + 冒烟
-- [ ] A′.3 导出与 phase-3 DoD 勾选
+- 核心 `asDefault` / `setDefaultType*` / `parseAs` / `getTypeInfoByCtor` 已可用（runtime-type 工作，不在本 plan 勾选）
 
 ### 阶段 B — 扩展骨架
 
-- [ ] B.1 核心导出审计（实现 `registerMongoDBTypes` 前再做）
-- [x] B.2 `tason-mongodb` 包脚手架（package / tsconfig / jest / 空 `src/index.ts`）
-- [ ] B.3 `registerMongoDBTypes` + `replaceDefaultImplementation` 选项（**未实现**，后续细化）
-- [x] B.4 包 README（脚手架说明 + 计划 API）
-- [ ] B.5 联调编译（依赖实现后补）
+- [x] B.1 核心导出审计（`defineType` / `TASONTypeRegistry` / `setDefaultType*` / `parseAs` / `RegisterTypeOptions`）
+- [x] B.2 `tason-mongodb` 包脚手架（package / tsconfig / jest）
+- [x] B.3 `registerMongoDBTypes` + `MongoTypes` / `MongoTypeCatalog` + `replaceDefaultImplementation`（TypeInfo 空表，阶段 C 填入）
+- [x] B.4 包 README（安装、register、替换默认 vs 仅追加）
+- [x] B.5 联调编译（扩展包 import 核心公开 API；`yarn workspace tason-mongodb build` / `test`）
 
 ### 阶段 C — P0
 
 - [ ] C.1 ObjectId
 - [ ] C.2 Long → Int64 追加类型实现 + 可选 `replaceDefaultImplementation`
 - [ ] C.3 Decimal128 追加类型实现 + 可选默认
-- [ ] C.4 type-system 交叉链接
+- [ ] C.4 type-system 短节或链到包 README
 - [ ] C.5 根 README 示例
 
 ### 阶段 D — P1 / 发布
@@ -505,13 +506,12 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ## 11. 建议实施顺序（一句话）
 
-**先 A 搬核心（done）→ 核心阶段 3 → B 扩展空壳（脚手架 done）→ C ObjectId/Long/Decimal128（`replaceDefaultImplementation`）→ D 发布与 Binary。**
+**先 A 搬核心（done）→ B 扩展骨架（done）→ C ObjectId / Long / Decimal128（填 `MongoTypes` + `replaceDefaultImplementation`）→ D 发布与 Binary。**
 
 ---
 
 ## 相关链接
 
-- [runtime-type README](../runtime-type/README.md)（TypeName ↔ 多 RuntimeType）  
-- [phase-3-duck-types](../runtime-type/phase-3-duck-types.md)  
-- [type-system.md](../../type-system.md)  
-- C#：`TASON.Types.SystemTextJson` 的 `AddSystemTextJson` 注册模式  
+- 核心多实现 API 说明：[phase-3-duck-types](../runtime-type/phase-3-duck-types.md)（只作 API 参考，不跟踪其进度）
+- [type-system.md](../../type-system.md)
+- C#：`TASON.Types.SystemTextJson` 的 `AddSystemTextJson` 注册模式

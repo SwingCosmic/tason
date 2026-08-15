@@ -1,21 +1,19 @@
 # Feature：TypeInstance 文档标记与中间层
 
-本目录是 **「运行时 TypeInstance 图 ⇄ 带类型标记的 plain/BSON 文档」** 的设计 / 计划，**不是**用户手册。
+本目录是 **「运行时对象图 ⇄ 带类型标记的 plain / BSON 文档」** 的设计与计划，不是用户手册。
 
 | 文档 | 职责 |
 | --- | --- |
-| **[design.md](./design.md)** | 职责切分、标记语义、中间层 API、与 BSON 包边界 |
-| **[implementation-plan.md](./implementation-plan.md)** | 阶段与 DoD |
+| **[design.md](./design.md)** | 职责切分、标记语义、中间层 API |
+| **[implementation-plan.md](./implementation-plan.md)** | 本 feature 进度 |
 
 ### 一句话目标
 
-对每个需要保真的 **TypeInstance 节点**（类比 C# 驱动的 `_t`），在写入文档时打上 **额外标记字段**；读回由 **TASON 侧中间层** 按标记 + Registry 还原为正确实例。  
-**`tason-mongodb` 只做 BSON 标量类型保真**，不负责对象多态 / 嵌套动态图。
+写入文档时，给每个需要保留类型的 **ObjectType** 节点加上标记字段（默认 `_t`，与 C# 驱动习惯相近）；读回时由 **TASON 侧中间层** 按标记和 Registry 还原实例。
 
-### 与其它计划
+`tason-mongodb` 只注册 BSON 标量，不负责对象多态或嵌套动态图。那是另一个 feature，与本中间层没有实现排期上的依赖。
 
-| 主题 | 文档 | 关系 |
-| --- | --- | --- |
-| monorepo + ObjectId/Long… | [../monorepo/](../monorepo/) | **只**标量；**禁止**把本中间层塞进该包 |
-| 鸭子类型 / 默认实现 | [../runtime-type/phase-3-duck-types.md](../runtime-type/phase-3-duck-types.md) | hydrate 时用 `getDefaultType` / 默认实现 |
-| ODM discriminator | design §1.5–1.6 | 可并存；本中间层面向 **开放嵌套图** 与 **纯驱动** |
+### 实现时用到的已有 API
+
+`toDocument` / `fromDocument` 调用现有 Registry：`tryGetTypeInfo`、`createInstance`、`getDefaultType`。  
+这些 API 已经存在，不构成本 feature 对 runtime-type 或 monorepo 的进度依赖。
