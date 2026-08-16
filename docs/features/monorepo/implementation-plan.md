@@ -1,6 +1,6 @@
 # Monorepo 与 MongoDB 扩展包 — 实施计划
 
-> **状态：阶段 A + B + C1 + C2 + C3 已完成；C4（依赖 runtime-type phase-4 数值协议）与 C 集成测试、阶段 D 待做**  
+> **状态：阶段 A + B + C1 + C2 + C3 与 C 集成测试（真实连接已验证）已完成；C4（依赖 runtime-type phase-4 数值协议）与阶段 D 待做**  
 > 概念入口：[README.md](./README.md)  
 > 类型清单：[phase-c-bson-types.md](./phase-c-bson-types.md)  
 > 姊妹实现：[tason-net](https://github.com/SwingCosmic/tason-net)（`TASON` + `TASON.Types.*` + `TASON.AspNetCore`）
@@ -43,7 +43,7 @@
 | 工具 | Yarn Classic（1.22）、`tsc` + `tsc-alias`、Jest、核心 `@/*` → `src/*` |
 | 扩展点 | `registerType` / `asDefault` / `setDefaultType*` / `parseAs`；扩展包 `registerMongoDBTypes` |
 | 内置类型 | 数字、Date*、RegExp、UUID、Buffer、JSON*、Dictionary 等（见 `packages/tason/src/types/`） |
-| Mongo | C1–C3 TypeInfo 已填、A / B 层测试绿；C4（依赖 runtime-type phase-4）与 C 集成测试未做 |
+| Mongo | C1–C3 TypeInfo 已填、A / B / C 层测试绿（C 集成经真实连接验证；连接信息 `.env` 占位 / `.env.local`，未配置自动 skip）；C4（依赖 runtime-type phase-4）未做 |
 
 ### 1.2 为何 monorepo 而不是多仓库
 
@@ -297,16 +297,16 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ### 4.3 测试分层（`packages/tason-mongodb/test`）
 
-不抄核心数值全矩阵。A / B / 注册入口已随 C1–C3 落地；C 集成未做。
+不抄核心数值全矩阵。A / B / 注册入口已随 C1–C3 落地；C 集成已落地并在真实连接下运行通过。
 
 | 层 | 文件 | 测什么 | 状态 |
 | --- | --- | --- | --- |
 | **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 | 已落地 |
 | **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。行为矩阵见包 README（单一出处）；覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
 | 注册入口 | `register.test.ts` | catalog 命名 / `Buffer` 追加实现不动默认 / 未知 `include` 抛错 | 已落地 |
-| **C 集成** | `integration.test.ts`（待建） | 真实 `mongodb` 连接，或 mongoose `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary。无连接则 skip，不强制 CI 必装 | 未做 |
+| **C 集成** | `integration.mongodb.test.ts`（原生驱动）/ `integration.mongoose.test.ts`（mongoose）；共享夹具 `integration.shared.ts`（实体 / schema / 序列化器装配 / 请求文本），连接加载 `env.ts` | 真实 `mongodb` 连接 + mongoose：驱动 / `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary 子类型（MD5 / Encrypted / Sensitive / Vector）与数值装箱数组（`Int64[]` / `Decimal128[]` / `bigint[]`）读写；schema 实体（动态类型字段）+ `replaceDefaultImplementation: true` + number handling 默认，模拟 API 请求 / 响应的 TASON 序列化。连接信息 `.env`（占位）→ `.env.local` / 环境变量，未配置自动 skip | 已完成 |
 
-依赖：workspace `tason`；`bson` 为 devDependency。集成分层再加 `mongodb` / `mongoose`（dev，可选）。
+依赖：workspace `tason`；`bson` 为 devDependency；集成层已加 `mongodb` / `mongoose` devDependency（bson 6 对齐，保证单一副本）。
 
 ---
 
@@ -517,7 +517,8 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 - [x] C.0 清单与映射（[phase-c-bson-types.md](./phase-c-bson-types.md)）；命名改为 `BSON*` 前缀规则
 - [x] C1 注册 + `ObjectId` / `BSONMinKey` / `BSONMaxKey` / `BSONTimestamp` / `BSONJavaScript` + A/B 测试
 - [x] C2 `Int64` / `Decimal128` / `Int32` / `Float64` / `UUID` 追加 + replaceDefault 配置测试
-- [x] C3 Binary 子类型 + A/B 测试（C 集成测试需额外环境，暂缓）
+- [x] C3 Binary 子类型 + A/B 测试
+- [x] C 集成测试 `integration.mongodb.test.ts` / `integration.mongoose.test.ts`（共享夹具 `integration.shared.ts`；真实驱动 / mongoose；`.env` 占位 + `.env.local` 真实连接，未配置自动 skip——已运行验证通过）
 - [ ] C4 bson 数值类接入统一数值实现协议（依赖 [runtime-type phase-4](../runtime-type/phase-4-number-protocol.md)；差异表：[phase-c §6](./phase-c-bson-types.md)）
 
 ### 阶段 D — 发布
@@ -530,7 +531,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ## 11. 建议实施顺序（一句话）
 
-**A / B / C1–C3 已完成 → C4 接入数值协议（依赖 runtime-type phase-4 实施）→ C 集成测试（需真实驱动环境，暂缓）→ D 发布。**
+**A / B / C1–C3 与 C 集成测试（真实连接已验证）已完成 → C4 接入数值协议（依赖 runtime-type phase-4 实施）→ D 发布。**
 
 ---
 

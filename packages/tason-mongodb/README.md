@@ -69,6 +69,8 @@ Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal
 
 `useBigInt64: true` 时驱动要求同时 `promoteValues` 与 `promoteLongs` 为 true，否则 `bson` 自己抛错。
 
+Mongoose 读取驱动层不提升（`promoteValues: false`，由 SchemaType cast 收值）：水合文档 / `toObject()` 的 `BigInt` SchemaType 是原生 `bigint`（核心 `BigInt` 路径）；`lean()` 绕过 cast 管线，BSON long 读回 `bson.Long`（写出 `Int64("…")`）。`Mixed`（动态类型）字段两种路径都原样保留 bson 实例。
+
 ### `parse`：`replaceDefault` × Handling
 
 | TypeName | `replaceDefault` | `deserializeNumberHandling` | 结果 |
@@ -139,6 +141,21 @@ Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal
 - **不在本包：** 对象图 `_t` 打标 / `toDocument` / `fromDocument`（见 [`docs/features/polymorphic-persistence/`](../../docs/features/polymorphic-persistence/)）
 
 组合（中间层实现后）：先 `registerMongoDBTypes`，再对对象图调用 `toDocument` / `fromDocument`。两包只通过 **共享 Registry** 组合，本包不 import 中间层。
+
+## 集成测试
+
+`test/integration.mongodb.test.ts`（原生驱动）与 `test/integration.mongoose.test.ts`（mongoose）需要真实 MongoDB 连接（`mongodb` / `mongoose` 均为 devDependency）；两个套件共享 `test/integration.shared.ts` 中的实体与序列化器装配：
+
+1. 在包目录创建 `.env.local`（已被 gitignore），填入真实连接信息：
+
+   ```
+   MONGODB_URI=mongodb://user:pass@host:27017
+   MONGODB_DB_NAME=tason_integration_test
+   ```
+
+2. 运行 `yarn workspace tason-mongodb test`。
+
+加载优先级：进程环境变量 > `.env.local` > `.env`（仓库内只放占位值）。未配置真实连接时集成用例自动 skip，不影响其余测试与 CI。
 
 ## License
 
