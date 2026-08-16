@@ -163,6 +163,8 @@ value instanceof Long
  └─ _bsontype === "Long"       →  Int64（本包 Long 实现）
 ```
 
+继承只影响**实例识别**（`instanceof Long` 会命中两者，须 `match` 拆分），**不延伸到文本形式**：`BSONTimestamp` 用 object 形式 `{t, i}`，`Int64`（`bson.Long`）用 scalar 十进制串，二者刻意不统一。理由：TypeName 是语言无关契约，BSON timestamp 的跨语言语义是 (seconds, increment) 二元组（EJSON `$timestamp` 同构、.NET / Python 驱动同此），不是 64 位整数；十进制形式会把 bson 的「high=t, low=i」位布局——继承自 `Long` 的存储实现细节——泄漏进文本格式；且与核心毫秒 `Timestamp` / `Int64` 形态雷同易混。`kind` 是 TypeInfo 的属性，与 ctor 继承无关，同继承链挂不同 TypeName / 不同 kind 无机制冲突。
+
 `Binary` 一族：核心先登记了 `Buffer`（ctor 是**核心** `Buffer` 类，无法识别 `bson.Binary`）。本包再往 `Buffer` **追加** `Binary` 实现。若该实现的 `match` 不排除专用 subtype，插入序会让加密 / 向量全部写成 `Buffer(...)`。
 
 ```

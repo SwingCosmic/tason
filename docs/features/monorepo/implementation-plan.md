@@ -467,6 +467,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 12. `binData` **按 subtype 拆**（C3）：UUID 在 C2 追加；MD5 / `BSONEncrypted` / `BSONSensitive` / `BSONVector` 独立；其余走核心 `Buffer`。**不**登记 DBRef。  
 13. 阶段 C 分四步：**C1** 新类型（ObjectId / Min·Max / Timestamp / JavaScript）→ **C2** 内置标量鸭子类型追加（含 UUID）→ **C3** Binary 子类型 → **C4** bson 数值类接入统一数值实现协议（依赖 runtime-type phase-4）。
 14. bson 数值类的 Handling 行为以 [分册 §6 差异表](./phase-c-bson-types.md) 为准：现行只认核心包装；协议（`unwrapNumber`）落地后 de `native` 拆 bson 类，且拆箱优先于 `replaceDefaultImplementation`（要保留 bson 类用 `deserializeNumberHandling: "all"` 或 `parseAs`）。协议本体的设计在 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，不在此维护。
+15. `BSONTimestamp` 固定为 **object 形式** `{t, i}`，**不**随 `bson.Timestamp extends Long` 统一为 scalar 十进制串：文本形式跟 TypeName 的跨语言语义（(seconds, increment)，EJSON 同构），不跟 JS 继承链；继承只影响实例识别（`match` 拆分，见分册 §4.1）。
 
 ---
 
