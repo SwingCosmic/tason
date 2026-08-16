@@ -2,7 +2,7 @@
 
 > 进度：[implementation-plan.md](./implementation-plan.md) · 用语：[glossary.md](../glossary.md)  
 > 依据：[BSON Types](https://www.mongodb.com/docs/manual/reference/bson-types/) · [bsonspec](https://bsonspec.org/spec.html) · `bson` 6.x  
-> 表 2 / 3：TypeName ↔ BSON / JS 对象。§5：驱动 `promote*` / `useBigInt64` 与 `replaceDefault` / Handling 的 ser/de 矩阵及测试覆盖。C1 / C2 / C3 均已填。  
+> 表 2 / 3：TypeName ↔ BSON / JS 对象。§5：驱动 `promote*` / `useBigInt64` 与 `replaceDefault` / Handling 的 ser/de 矩阵及测试覆盖。C1 / C2 / C3 均已填。§6：数值 Handling 的现行 / 协议后行为差异（依赖 runtime-type [phase-4](../runtime-type/phase-4-number-protocol.md)）。  
 > 命名：仅 BSON 内部语义以 `BSON` 开头；`ObjectId` / `UUID` / `MD5` / 数字 / `Buffer` 不加前缀。实施分 C1 / C2 / C3，见 [implementation-plan](./implementation-plan.md)。
 
 ---
@@ -232,7 +232,8 @@ TypeInstance  TypeName(arg)
 两层不要混：
 
 1. `bson.deserialize` 的 `promoteValues` / `promoteLongs` / `useBigInt64` / `promoteBuffers` 决定 stringify **输入**是什么。
-2. `replaceDefaultImplementation` 只改 parse 的 `types[0]`。核心 Number Handling **只拆 / 只裸写核心数值包装**；`bson.Long` 等不是核心包装。
+2. `replaceDefaultImplementation` 只改 parse 的 `types[0]`。核心 Number Handling 现行**只拆 / 只裸写核心数值包装**；`bson.Long` 等不是核心包装（协议后的变化见 §6）。
+3. `replaceDefaultImplementation` **不作用于 stringify**：序列化从实例出发扫描（§4.1），命中哪个实现就用哪个的 `serialize` / `match`，与 `types[0]` 是谁无关（详见 §5.3 末）。
 
 ### 5.1 驱动读出 → stringify
 
@@ -256,11 +257,13 @@ TypeInstance  TypeName(arg)
 
 ### 5.2 parse：`replaceDefault` × `deserializeNumberHandling`
 
+**现行行为**（C1–C3 已实现；协议后变化见 §6）：
+
 | TypeName | replaceDefault | Handling | parse 结果 |
 | --- | --- | --- | --- |
 | `Int64` | 关 | `native` / 默认 | `bigint` |
 | `Int64` | 关 | `all` | 核心 `Int64` |
-| `Int64` | 开 | **任意** | `bson.Long` |
+| `Int64` | 开 | **任意** | `bson.Long`（`native` 也不拆——bson 类不参与 Handling） |
 | `Int32` | 关 / 关 / 开 | native·默认 / `all` / 任意 | `number` / 核心 `Int32` / `bson.Int32` |
 | `Float64` | 同上 | | `number` / 核心 `Float64` / `bson.Double` |
 | `Decimal128` | 关 / 关 / 开 | native·默认 / `all` / 任意 | `Decimal` / 核心 `Decimal128` / `bson.Decimal128` |
@@ -271,12 +274,18 @@ TypeInstance  TypeName(arg)
 
 ### 5.3 stringify bson 数值类 × `serializeNumberHandling`
 
+**现行行为**（C1–C3 已实现；协议后变化见 §6）：
+
 | 值 | `unsafe-only` | `all` | `none` |
 | --- | --- | --- | --- |
 | `bson.Long` / `Int32` / `Double` / `Decimal128` | TypeName（安全整数也装箱） | TypeName | **抛**（`trySerializeNumberAsLiteral` 不认 bson 类） |
 | 核心数值包装 | 安全则裸写 | TypeName | 强制裸写 |
 | 已提升 `number` / `bigint` | 核心 Handling | 核心 Handling | 核心 Handling |
 | 非数值 bson 类 | TypeName | TypeName | TypeName |
+
+**replaceDefault 与序列化：** 无影响，上表对 replaceDefault 开 / 关同样成立。stringify 扫描（`tryGetTypeInfo` 兜底路径）按「TypeName 插入序 × 名内 `types[]` 顺序」对实例做 `instanceof` ∧ `match`，命中哪个实现就用哪个的 `serialize`。本包各追加实现与核心包装是**互不相关**的类（`bson.Long` 不 `instanceof` 核心 `Int64`，反之亦然），且各 `match` 互斥，故 `asDefault` 置顶（换 `types[0]`）不改变命中结果，也不改变扫描路径——扫描从头到尾与「谁是默认实现」无关。
+
+唯一理论例外：同一 TypeName 下多个实现存在**继承关系**且 `match` 不互斥时，置顶会改变名内扫描的先命中者。本包无此情况——`bson.Timestamp` 继承 `Long` 是**跨 TypeName**（`BSONTimestamp` vs `Int64`）的拆分，由 TypeName 插入序 + Long 实现的 `match`（`_bsontype === "Long"`）双重保证。
 
 不要在本包测试里抄核心 N1–N8 全矩阵；只固定上表与驱动选项交叉。
 
@@ -289,9 +298,24 @@ TypeInstance  TypeName(arg)
 | M3 | `include` / `allowUnsafeTypes` | `options.test.ts` |
 | M4 | `promoteLongs`：安全整数字面量 vs `Long` → `Int64` | `options.test.ts` |
 | M5 | `promoteBuffers`：通用仍 `Buffer`；MD5 丢失 subtype | `options.test.ts` |
-| M6 | Handling × bson 数值类：默认装箱；`none` 抛；`de:all` 无 replace 仍核心包装；replace 后 Handling 不拆 | `options.test.ts` |
+| M6 | Handling × bson 数值类：默认装箱；`none` 抛；`de:all` 无 replace 仍核心包装；replace 后 Handling 不拆（协议后按 §6 重写） | `options.test.ts` |
 | M7 | `promoteValues: false` 的 Int32/Double；`useBigInt64` 的安全 / 超范围 long | `options.test.ts` |
 | T1–Tn | 各 TypeName 默认 parse / stringify（含 Binary 选型） | `types.test.ts` |
 | R1 | catalog / Buffer 追加实现 | `register.test.ts` |
 
 不在本包测：核心 Handling 全类型矩阵（`number-handling.test.ts`）；真实驱动 / mongoose（C 集成，需额外环境）。
+
+---
+## 6. 数值 Handling：现行与协议后的行为差异（待 runtime-type phase-4）
+
+§5.2 / §5.3 / M6 描述的是 **C1–C3 已实现的行为**。「统一数值实现协议」——数值 TypeName 的实现（内置与第三方）以 `TASONTypeInfo.unwrapNumber` 为统一契约、核心单轨化、多实现共存——设计定稿于 **[runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，尚未实施**（进度在该 feature 的 implementation-plan 勾选）。协议实现后，本包按下表回改 §5.2 / §5.3 矩阵、M6 测试与包 README（跟进任务：[implementation-plan](./implementation-plan.md) 阶段 C4）。
+
+| 差异点 | 现行为（已实现） | 协议落地后 |
+| --- | --- | --- |
+| de `native` × replaceDefault 开 | 不拆：`Int64("1")` → `bson.Long` | 拆箱：Long → `bigint`、Int32 / Double → `number`、Decimal128 → `Decimal`；`all` 仍保留 bson 类 |
+| ser `unsafe-only` × bson 数值类 | 安全整数也装箱（`Int64("1")`） | 与核心包装一致：安全裸写 `1`，超范围才装箱 |
+| ser `none` × bson 数值类 | 抛错 | 强制裸字面量 |
+| de `native` × replaceDefault 关 | 拆核心包装为原生值 | 不变 |
+| 机制 | 核心只认 `INumber.value`（内置白名单，双轨） | 数值 TypeName 实现统一契约 `unwrapNumber`（内置同此，单轨） |
+
+注意：协议落地后，「replaceDefault 开 + 默认 `native`」会把 parse 出的 bson 类拆成原生值——要保留 bson 类（喂驱动 / mongoose），配 `deserializeNumberHandling: "all"` 或单次 `parseAs(Long)`。方案细节（钩子工作流、原型协议备选评估、bson 四钩子）见协议文档 §3–§6。

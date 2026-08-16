@@ -23,7 +23,7 @@
 
 | Feature | 本目录负责 | 不负责 | 进度 |
 | --- | --- | --- | --- |
-| [runtime-type/](./runtime-type/) | Number Handling、ClassMetadata / schema、同一 TypeName 的多实现与 `parseAs` | BSON 类型实现、文档 `_t` | [implementation-plan.md](./runtime-type/implementation-plan.md) |
+| [runtime-type/](./runtime-type/) | Number Handling、ClassMetadata / schema、同一 TypeName 的多实现与 `parseAs`、统一数值实现协议（phase-4，未实施） | BSON 类型实现、文档 `_t` | [implementation-plan.md](./runtime-type/implementation-plan.md) |
 | [monorepo/](./monorepo/) | Yarn workspaces、扩展包约定、`tason-mongodb` 的 BSON 标量 TypeInfo | 对象图 `_t`、核心 Handling / schema 的语义 | [implementation-plan.md](./monorepo/implementation-plan.md) |
 | [polymorphic-persistence/](./polymorphic-persistence/) | `toDocument` / `fromDocument`、文档节点上的 `_t` | BSON TypeInfo、改 TASON 语法 | [implementation-plan.md](./polymorphic-persistence/implementation-plan.md) |
 
@@ -42,6 +42,7 @@
 | --- | --- |
 | RuntimeType / Schema / TypeName / TypeInstance、字面量、鸭子类型 | [glossary.md](./glossary.md) |
 | Number Handling 语义、ClassMetadata 模型 | [runtime-type/runtime-type-design.md](./runtime-type/runtime-type-design.md) |
+| 数值实现协议 `unwrapNumber`（数值 TypeName 多实现的统一 Handling；未实施） | [runtime-type/phase-4-number-protocol.md](./runtime-type/phase-4-number-protocol.md) |
 | `asDefault` / `parseAs` / `getTypeInfoByCtor` | [runtime-type/phase-3-duck-types.md](./runtime-type/phase-3-duck-types.md) |
 | `registerMongoDBTypes`、`replaceDefaultImplementation`、扩展包约定 | [monorepo/implementation-plan.md](./monorepo/implementation-plan.md) |
 | 官方 BSON 清单、ser/de 映射、选项行为矩阵 | [monorepo/phase-c-bson-types.md](./monorepo/phase-c-bson-types.md) |

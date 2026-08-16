@@ -1,6 +1,6 @@
 # Monorepo 与 MongoDB 扩展包 — 实施计划
 
-> **状态：阶段 A + B + C1 + C2 + C3 已完成；C 集成测试与阶段 D 待做**  
+> **状态：阶段 A + B + C1 + C2 + C3 已完成；C4（依赖 runtime-type phase-4 数值协议）与 C 集成测试、阶段 D 待做**  
 > 概念入口：[README.md](./README.md)  
 > 类型清单：[phase-c-bson-types.md](./phase-c-bson-types.md)  
 > 姊妹实现：`E:\dev\VS2022\tason-net`（`TASON` + `TASON.Types.*` + `TASON.AspNetCore`）
@@ -43,7 +43,7 @@
 | 工具 | Yarn Classic（1.22）、`tsc` + `tsc-alias`、Jest、核心 `@/*` → `src/*` |
 | 扩展点 | `registerType` / `asDefault` / `setDefaultType*` / `parseAs`；扩展包 `registerMongoDBTypes` |
 | 内置类型 | 数字、Date*、RegExp、UUID、Buffer、JSON*、Dictionary 等（见 `packages/tason/src/types/`） |
-| Mongo | 注册骨架已落地；C1 / C2 / C3 TypeInfo 已填 |
+| Mongo | C1–C3 TypeInfo 已填、A / B 层测试绿；C4（依赖 runtime-type phase-4）与 C 集成测试未做 |
 
 ### 1.2 为何 monorepo 而不是多仓库
 
@@ -152,17 +152,17 @@ tason/                          # git 仓库根
 | 领域库（如 `bson`） | **peerDependency**（可选 / 必选写清）；扩展包不强制用户装完整 `mongodb` 驱动，优先 `bson` |
 | 核心内部路径 | **禁止** `tason/lib/...` 深路径；只依赖公开 API（`defineType`、`TASONTypeRegistry`、类型导出） |
 
-### 3.2 公开 API 形状（推荐）
+### 3.2 公开 API 形状（已落地）
 
 ```ts
 // packages/tason-mongodb/src/index.ts
-import type TASONTypeRegistry from "tason/…"; // 以最终导出为准
+import type { TASONTypeRegistry } from "tason";
 
-/** 类型实现表（便于测试与高级定制） */
-export const MongoTypes: Record<string, TASONTypeInfo<any>>;
+/** 类型实现表（便于测试与高级定制）。同一 TypeName 可挂多条（如 UUID 含 Binary subtype 3/4） */
+export const MongoTypes: Record<MongoTypeName, MongoTypeInfos>;
 
 /**
- * 向 registry 注册本包全部类型（幂等策略见 §3.3）。
+ * 向 registry 注册本包全部（或 `include` 指定的）类型。
  * 对齐 C#：TasonTypeRegistry.AddSystemTextJson(...)
  */
 export function registerMongoDBTypes(
@@ -173,25 +173,21 @@ export function registerMongoDBTypes(
 export type RegisterMongoDBTypesOptions = {
   /**
    * 是否将 bson.Long / Decimal128 等设为对应内置 TypeName 的 **默认实现**
-   *（依赖核心 `asDefault` / `setDefaultType`）。
+   *（核心 `registerType(..., { asDefault })`）。
    * - 缺省 / false：仅追加类型实现（parse 仍用核心默认；stringify 可识别实例）
    * - true：对可映射项全部替换默认
-   * - 对象：按 TypeName 细开
-   *
-   * 旧名 duckOntoBuiltins / defaultImplementations 废止（标识符约定见 AGENTS.md）。
-   * 「挂到 Int64 等内置名」由类型矩阵 + include 决定，无单独开关。
+   * - 对象：按 TypeName 细开（仅 catalog 中 `canReplaceDefault` 的 append 项生效）
    */
-  replaceDefaultImplementation?: boolean | {
-    Int64?: boolean;
-    Decimal128?: boolean;
-    // …
-  };
+  replaceDefaultImplementation?: boolean | ReplaceDefaultImplementationMap;
   /** 选择性注册；默认全部 */
   include?: MongoTypeName[];
 };
 ```
 
-**用法（落地后写入包 README）：**
+另导出：`MongoTypeCatalog` / `ALL_MONGO_TYPE_NAMES` / `mongoTypeInfoList`，类型 `MongoTypeName` / `MongoTypeSpec` / `MongoTypeStrategy` / `MongoTypeInfos` / `ReplaceDefaultImplementationMap`（细开键：`Int64` / `Decimal128` / `Int32` / `Float64` / `UUID` / `Buffer`）。  
+命名历史：早期草案的 duckOntoBuiltins / defaultImplementations 已废止，定名 `replaceDefaultImplementation`。
+
+**用法（已写入包 README）：**
 
 ```ts
 import TASON from "tason";
@@ -213,7 +209,7 @@ s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 | **追加类型实现（挂到已有 TypeName）** | 如 bson `Long` → `Int64`：`registerType("Int64", longTypeInfo)`（push）。parse **仍 core 默认**；stringify 时 `instanceof` 命中 |
 | **替换默认实现（推荐 Mongo 优先）** | 核心 `asDefault` / `setDefaultType`；本包选项 **`replaceDefaultImplementation`**。parse `Int64("…")` → `bson.Long` |
 | **别名** | 如需要 `Long` 作为独立 TypeName：`registerTypeAlias` 或单独 scalar（**二选一**，避免双语义） |
-| **幂等** | 文档约定「同一 registry 只 register 一次」 |
+| **幂等** | 核心 `registerType` 按 ctor 幂等更新，同一 registry 重复调用不堆积 |
 
 本包用到的核心 API（语义以 runtime-type 为准，进度不在本文件勾选）：
 
@@ -233,9 +229,9 @@ s.parse(`{ _id: ObjectId("6670f391dcb0bd791cb3bd18") }`);
 - `TASONTypeRegistry`（类型 + 实例方法）
 - 若扩展需要与 Handling 交互：`TASONSerializerOptions` 相关类型
 
-**检查项：** `packages/tason/src/index.ts` 是否已 re-export；缺则补导出（小改动，属 monorepo 阶段 1 可做）。
+**检查项（B.1 已核对补齐）：** `defineType` / `TASONTypeInfo` / `TASONTypeRegistry` / `RegisterTypeOptions` 均已自 `tason` 命名导出。
 
-当前 `TASONTypeRegistry` 仅 default export 在模块内，扩展通过 `serializer.registry` 拿到实例即可，**不必**要求用户 `new Registry`。
+扩展通过 `serializer.registry` 拿到实例即可，**不必**要求用户 `new Registry`。
 
 ---
 
@@ -301,13 +297,14 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ### 4.3 测试分层（`packages/tason-mongodb/test`）
 
-三类测试随 C1–C3 对应类型落地，不抄核心数值全矩阵。
+不抄核心数值全矩阵。A / B / 注册入口已随 C1–C3 落地；C 集成未做。
 
-| 层 | 文件（建议） | 测什么 |
-| --- | --- | --- |
-| **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 |
-| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。矩阵与覆盖编号见 [phase-c §5](./phase-c-bson-types.md) |
-| **C 集成** | `integration.test.ts` | 真实 `mongodb` 连接，或 mongoose `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary。无连接则 skip，不强制 CI 必装 |
+| 层 | 文件 | 测什么 | 状态 |
+| --- | --- | --- | --- |
+| **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 | 已落地 |
+| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。矩阵与覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
+| 注册入口 | `register.test.ts` | catalog 命名 / `Buffer` 追加实现不动默认 / 未知 `include` 抛错 | 已落地 |
+| **C 集成** | `integration.test.ts`（待建） | 真实 `mongodb` 连接，或 mongoose `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary。无连接则 skip，不强制 CI 必装 | 未做 |
 
 依赖：workspace `tason`；`bson` 为 devDependency。集成分层再加 `mongodb` / `mongoose`（dev，可选）。
 
@@ -399,7 +396,20 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 **DoD：** `Binary` 共用基类选型与分册 §4.1 一致；加密 / 向量往返保住 subtype。
 
-用户文档（`type-system.md` 短节、根 README ObjectId 示例、包 README）随 C1 能跑通时改，不单列阶段。
+用户文档（`type-system.md` 短节、根 README ObjectId 示例、包 README）已随 C1 落地，不单列阶段。
+
+### 阶段 C4 — bson 数值类接入统一数值实现协议（依赖 runtime-type phase-4）
+
+**前提：** 核心「统一数值实现协议」（数值 TypeName 实现的统一契约 `TASONTypeInfo.unwrapNumber`、核心单轨化、多实现共存）由 runtime-type feature 实施——设计见 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，进度在该 feature 的 implementation-plan 勾选，**不在本文件**。协议落地后执行本阶段，并按分册 [§6 差异表](./phase-c-bson-types.md) 回改 §5.2 / §5.3 矩阵。
+
+| # | 任务 |
+| --- | --- |
+| C4.1 | 前置确认：runtime-type phase-4 已实施（钩子字段 + 注册校验可用） |
+| C4.2 | 本包：`Int64` / `Int32` / `Float64` / `Decimal128` 四个 bson TypeInfo 声明钩子（Long → `toBigInt()`，禁 `valueOf`） |
+| C4.3 | 测试：M6 按分册 §6 差异表重写（ser 三档、de `native` 拆 bson 类、`all` 保留、replace 后仍拆） |
+| C4.4 | 文档同步：分册 §5.2 / §5.3 矩阵改为协议后行为、§6 差异表标记已落地、包 README「Handling」段 |
+
+**DoD：** 分册 §6 差异表全部转为现行行为并合入 §5.2 / §5.3；`none` 不再对 bson 类抛错；`native` 拆 `Long` → `bigint`；`all` 保 bson 类。
 
 ### 阶段 D — 发布与文档抛光
 
@@ -428,14 +438,14 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ## 7. 文档与 Agent 约定变更清单
 
-| 文档 | 变更 |
-| --- | --- |
-| `AGENTS.md` | 源码地图改为 `packages/tason/src`；命令加 `yarn workspace`；扩展包边界一节 |
-| `docs/features/README.md` | 加入 monorepo feature 索引 |
-| `docs/type-system.md` | 「同一 TypeName 的多种实现」+「扩展类型」短节（链到包 README） |
-| 根 `README.md` | 仓库结构；ObjectId 依赖 `tason-mongodb` |
-| `packages/tason-mongodb/README.md` | 面向用户的使用说明（C1 / C2 / C3 已写） |
-| 本 plan | 进度勾选（A / B 已完成） |
+| 文档 | 变更 | 状态 |
+| --- | --- | --- |
+| `AGENTS.md` | 源码地图改为 `packages/tason/src`；命令加 `yarn workspace`；扩展包边界一节 | 已完成 |
+| `docs/features/README.md` | 加入 monorepo feature 索引 | 已完成 |
+| `docs/type-system.md` | 「同一 TypeName 的多种实现」+「扩展类型」短节（链到包 README） | 已完成 |
+| 根 `README.md` | 仓库结构；ObjectId 依赖 `tason-mongodb` | 已完成 |
+| `packages/tason-mongodb/README.md` | 面向用户的使用说明（C1 / C2 / C3 已写） | 已完成 |
+| 本 plan | 进度勾选（§10；A / B / C1–C3 已完成，C 集成与 D 待做） | 持续更新 |
 
 用户文档只写 **怎么用**；目录迁移细节与排期只留在本 feature 包。
 
@@ -455,7 +465,8 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 10. **不发明 BSON 类型码**。库侧用户扩展用 `binData` 子类型 128–255；TASON 文本走 `Buffer`，**不保留 subtype**。业务文档类型走 `_t`，不进本包。  
 11. BSON Timestamp 的 TypeName 固定为 **`BSONTimestamp`**；`Long` 实现必须排除 `bson.Timestamp`（该类继承 `Long`）。  
 12. `binData` **按 subtype 拆**（C3）：UUID 在 C2 追加；MD5 / `BSONEncrypted` / `BSONSensitive` / `BSONVector` 独立；其余走核心 `Buffer`。**不**登记 DBRef。  
-13. 阶段 C 分三步：**C1** 新类型（ObjectId / Min·Max / Timestamp / JavaScript）→ **C2** 内置标量鸭子类型追加（含 UUID）→ **C3** Binary 子类型。
+13. 阶段 C 分四步：**C1** 新类型（ObjectId / Min·Max / Timestamp / JavaScript）→ **C2** 内置标量鸭子类型追加（含 UUID）→ **C3** Binary 子类型 → **C4** bson 数值类接入统一数值实现协议（依赖 runtime-type phase-4）。
+14. bson 数值类的 Handling 行为以 [分册 §6 差异表](./phase-c-bson-types.md) 为准：现行只认核心包装；协议（`unwrapNumber`）落地后 de `native` 拆 bson 类，且拆箱优先于 `replaceDefaultImplementation`（要保留 bson 类用 `deserializeNumberHandling: "all"` 或 `parseAs`）。协议本体的设计在 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，不在此维护。
 
 ---
 
@@ -506,6 +517,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 - [x] C1 注册 + `ObjectId` / `BSONMinKey` / `BSONMaxKey` / `BSONTimestamp` / `BSONJavaScript` + A/B 测试
 - [x] C2 `Int64` / `Decimal128` / `Int32` / `Float64` / `UUID` 追加 + replaceDefault 配置测试
 - [x] C3 Binary 子类型 + A/B 测试（C 集成测试需额外环境，暂缓）
+- [ ] C4 bson 数值类接入统一数值实现协议（依赖 [runtime-type phase-4](../runtime-type/phase-4-number-protocol.md)；差异表：[phase-c §6](./phase-c-bson-types.md)）
 
 ### 阶段 D — 发布
 
@@ -517,7 +529,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ## 11. 建议实施顺序（一句话）
 
-**A/B 已完成 → C1 新标量 → C2 鸭子类型追加（含 UUID）→ C3 Binary 子类型 → D 发布。**
+**A / B / C1–C3 已完成 → C4 接入数值协议（依赖 runtime-type phase-4 实施）→ C 集成测试（需真实驱动环境，暂缓）→ D 发布。**
 
 ---
 

@@ -24,6 +24,7 @@ Phase 1 ──► Phase 2.1 ──► Phase 2.2 ──► Phase 3
 | **2.1** | schema 定义与简单应用 | **已完成** | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) |
 | **2.2** | 结构递归 + Handling 上下文 + 全数值契约 | **已完成** | 同上 |
 | **3** | 默认实现（`asDefault` / `setDefaultType`）+ `parseAs` / `getTypeInfoByCtor` | **已完成** | [phase-3-duck-types.md](./phase-3-duck-types.md) |
+| **4** | 统一数值实现协议（`unwrapNumber`，单轨化） | **设计定稿，未实施** | [phase-4-number-protocol.md](./phase-4-number-protocol.md) |
 
 ---
 
@@ -143,6 +144,7 @@ src/
 | 2.1 | M–L | 阶段 1 | **done** |
 | 2.2 | L | 2.1 | **done** |
 | 3 | S–M | 2.2 | **done** |
+| 4 | M–L | 阶段 1 + 3（动机来自 tason-mongodb，见 [monorepo](../monorepo/implementation-plan.md) 阶段 C4） | 设计定稿，未实施 |
 
 - PR1 = 阶段 1 ✓
 - PR2 = 2.1 ✓ · PR3 = 2.2 ✓ · PR4 = 阶段 3 ✓
@@ -169,5 +171,6 @@ src/
 | [phase-1-number-handling.md](./phase-1-number-handling.md) | 阶段 1 |
 | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2 |
 | [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 |
+| [phase-4-number-protocol.md](./phase-4-number-protocol.md) | 阶段 4（统一数值实现协议，未实施） |
 | [type-system.md](../../type-system.md) | 规范 |
 | `E:\dev\VS2022\tason-net` | C# 参考实现 |
