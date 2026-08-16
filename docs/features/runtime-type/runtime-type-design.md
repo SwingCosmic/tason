@@ -5,7 +5,7 @@
 
 JS 侧选项字符串一律 **kebab-case**。
 
-**来源：** 本设计自 C# 参考实现 `E:\dev\VS2022\tason-net`（核心库 `TASON/`：`Metadata/`、`BuiltinNumberHandling`、`TasonTypeRegistry` 等）迁移，并按 JS 能力改造——CLR 反射成员类型改为 **现成 schema 库 + adapter**；数值选项拆成序列化 / 反序列化两侧。对照表与有意差异见 [implementation-plan.md](./implementation-plan.md)「来源与 C# 对照」。
+**来源：** 本设计自 C# 参考实现 [tason-net](https://github.com/SwingCosmic/tason-net)（核心库 `TASON/`：`Metadata/`、`BuiltinNumberHandling`、`TasonTypeRegistry` 等）迁移，并按 JS 能力改造——CLR 反射成员类型改为 **现成 schema 库 + adapter**；数值选项拆成序列化 / 反序列化两侧。对照表与有意差异见 [implementation-plan.md](./implementation-plan.md)「来源与 C# 对照」。
 
 **用语：** RuntimeType / Schema / TypeName / TypeInstance / Number Handling 等见 [术语与用语](../glossary.md)（本文件不重复）。
 
@@ -171,7 +171,7 @@ Schema 只回答「内存里是什么」；「文本里叫什么 TypeName」由 
 
 ```ts
 interface RuntimeSchemaAdapter<S = unknown> {
-  /** 提供字段路径上的 RuntimeType，供 ser/de 映射 */
+  /** 提供字段路径上的 RuntimeType，供序列化/反序列化映射 */
   // 最小能力：遍历实体属性、识别 bigint|number|array|object|string|boolean|…
 }
 ```

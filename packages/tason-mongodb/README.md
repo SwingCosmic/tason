@@ -41,7 +41,7 @@ registerMongoDBTypes(s.registry);
 两层选项不要混：
 
 1. **驱动** `bson.deserialize` / Mongo 读选项（`promoteValues` / `promoteLongs` / `useBigInt64` / `promoteBuffers`）决定手里是什么 JS 值。
-2. **本包** `replaceDefaultImplementation` + 核心 [Number Handling](../../docs/number-handling.md) 决定 `parse` 出什么、以及 bson 类如何 `stringify`。
+2. **本包** `replaceDefaultImplementation` 决定 `parse` 用哪个实现；bson 类如何 `stringify` 由核心 [Number Handling](../../docs/number-handling.md) 决定，与 `replaceDefaultImplementation` 无关。
 
 Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal128` 等）。`bson.Long` / `Int32` / `Double` / `Decimal128` 不是核心包装：默认 `unsafe-only` 也会写出 TypeName；`serializeNumberHandling: "none"` 会对这些实例 **抛错**（无法拆成裸字面量）。要 JSON 风格数字，应让驱动提升成 `number` / `bigint`，而不是对 bson 包装开 `none`。
 
@@ -87,6 +87,8 @@ Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal
 | `UUID` / `Buffer` | 开 | — | `bson.UUID` / `Binary` subtype 0 |
 | `ObjectId`、`MD5`、`BSON*` | — | — | 对应 bson 类（无 replaceDefault、不受 Handling） |
 
+表中「默认」指 `object-fallback-native`：在值级路径（无 ObjectType 字段、无 schema 契约）下它与 `native` 行为相同。
+
 单次换实现用 `parseAs(Long, 'Int64("1")')` 等，不改全局默认。
 
 ### `stringify` bson 数值类 × Handling
@@ -97,6 +99,8 @@ Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal
 | 核心 `Int64(1)` 等包装 | 安全则裸字面量 | TypeName | 强制裸字面量 |
 | 已提升的 `number` / `bigint` | 走核心 Handling | 走核心 Handling | 走核心 Handling |
 | `ObjectId` / `Binary` / `UUID` 等非数值 | TypeName | TypeName | TypeName |
+
+上表与 `replaceDefaultImplementation` 开 / 关无关：`stringify` 从实例出发识别实现（见 [类型系统 · 多实现](../../docs/type-system.md#同一-typename-的多种实现)），换默认实现不改变序列化结果。
 
 ## 已实现的 TypeName
 

@@ -18,7 +18,8 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
 ### 自描述强类型
 * TASON的语法包含了类型信息，不需要额外的描述文件，因此可以非常方便的进行反序列化。
 * TASON类型是语言无关的，即使是TASON内置类型，具体的实现也取决于所使用的语言，只需要语义上的一致即可
-* 支持类型判别器(discriminator)、创建类型别名和指定序列化类型，实现多态序列化、多对一反序列化、鸭子类型序列化
+* 同一类型名可以注册**多种实现**（鸭子类型）：序列化时自动识别实例所属的实现；反序列化默认采用**默认实现**，默认实现可替换，也可以单次指定
+* 支持类型判别器(discriminator)、创建类型别名和指定序列化类型，实现多态序列化、多对一反序列化
 
 ### 动态结构
 * TASON支持动态结构，对象可以包含任意数量的属性，或者将动态对象和固定类型对象混合使用。
@@ -33,7 +34,8 @@ TASON的三大特性：**人类可读**、**自描述强类型**和**动态结�
 1. 低代码平台、企业数据中台、数据仓库、仪表盘、BI分析等所使用的高度动态化查询结果，可以同时实现强类型，自描述和人类可读的数据格式。
 2. 含有动态类型的非关系型数据库如MongoDB的无损数据查询和保存。MongoDB支持在查询中使用复杂类型，
 如果使用传统基于JSON的API接口传递参数，例如传递字符串形式的Date, Int64和RegExp，可能会在查询动态结构文档时，类型不匹配而查询不到数据。
-事实上，MongoDB管理工具展现数据的格式和TASON非常相似，也是其灵感来源之一
+事实上，MongoDB管理工具展现数据的格式和TASON非常相似，也是其灵感来源之一。
+配套的 [`tason-mongodb`](packages/tason-mongodb) 扩展包提供了与 MongoDB 驱动一致的 BSON 类型实现（`ObjectId`、`Long`、`Decimal128`、`Binary` 子类型等）
 3. 将接口数据反序列化为JavaScript类，从而简化JavaScript基于实体类的跨平台/同构(isomorphic)应用开发
 
 ### 其它可用场景
@@ -73,10 +75,11 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 
 ## 类型系统
 
-- [类型系统说明](docs/type-system.md) — 语法类型、内置类型与规范约定
+- [类型系统说明](docs/type-system.md) — 语法类型、内置类型、同一类型名的多种实现与规范约定
 - [数值处理](docs/number-handling.md) — 序列化/反序列化数值装箱与拆箱策略
 - [实体元数据与 Schema](docs/class-metadata.md) — 用 Valibot 等契约把字段收成 `bigint` / `Date` 等运行时类型
 - [正则表达式](docs/regexp.md) — `RegExp` 类型实例与选项
+- [MongoDB / BSON 类型](packages/tason-mongodb/README.md) — `ObjectId`、`bson.Long` / `Decimal128` / `Binary` 子类型，及默认实现替换选项
 
 ## 仓库结构
 
@@ -85,7 +88,7 @@ TASON语法以JSON5为蓝本，去掉了少数易混淆的语法，并增强了�
 | 包 | 目录 | 说明 |
 | --- | --- | --- |
 | [`tason`](packages/tason) | `packages/tason` | 核心序列化（npm 包名不变） |
-| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展 |
+| [`tason-mongodb`](packages/tason-mongodb) | `packages/tason-mongodb` | MongoDB / BSON 类型扩展：`ObjectId`、`bson.Long` / `Decimal128` / `Int32` / `Double` / `UUID` / `Binary` 子类型；支持把 bson 实现替换为默认实现 |
 
 贡献者请在仓库根执行 `yarn install` / `yarn build` / `yarn test`。发布从各包目录进行。
 
@@ -106,18 +109,30 @@ yarn add tason
 pnpm add tason
 ```
 
-MongoDB `ObjectId` 等 BSON 类型需额外安装 [`tason-mongodb`](packages/tason-mongodb) 并注册：
+MongoDB `ObjectId` 等 BSON 类型需额外安装 [`tason-mongodb`](packages/tason-mongodb)（peer 依赖 `bson`）并注册：
 
 ```ts
 import TASON from "tason";
 import { registerMongoDBTypes } from "tason-mongodb";
+import { Long } from "bson";
 
 const s = new TASON.Serializer();
+
+// 追加类型实现：stringify 能识别 bson 实例；parse 仍用核心默认
 registerMongoDBTypes(s.registry);
-s.parse(`ObjectId("6670f391dcb0bd791cb3bd18")`);
+s.stringify(Long.fromString("6571037680684232705")); // Int64("6571037680684232705")
+s.parse(`Int64("6571037680684232705")`);             // 6571037680684232705n（按默认策略拆箱）
+
+// 把 bson 实现替换为默认实现（也可按 TypeName 细开，如 { Int64: true }）
+registerMongoDBTypes(s.registry, { replaceDefaultImplementation: true });
+s.parse(`Int64("6571037680684232705")`);             // bson.Long
+
+// 单次选型，不改全局默认
+s.parseAs(Long, `Int64("6571037680684232705")`);     // bson.Long
 ```
 
-同一 TypeName 可挂多种实现，并用 `parseAs` 单次选型，见 [类型系统](docs/type-system.md#同一-typename-的多种实现)。
+同一 TypeName 挂多种实现（鸭子类型注册）、替换默认实现等通用能力见 [类型系统](docs/type-system.md#同一-typename-的多种实现)；
+驱动 `promote*` 选项、数值处理交叉等完整矩阵见 [tason-mongodb README](packages/tason-mongodb/README.md)。
 
 `tason` 仅支持 ESM：前端需打包器（Vite、webpack 等）；Node.js 需原生 ESM。
 

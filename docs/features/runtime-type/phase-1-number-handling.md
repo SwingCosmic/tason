@@ -95,7 +95,7 @@
 | N4 | 默认 serialize `unsafe-only`；stringify `1n` / 超大 bigint | `"1"` / `BigInt("…")` |
 | N5 | `serializeNumberHandling: "none"` 全部数值含超大 bigint/Decimal | 强制裸字面量 |
 | N7 | 嵌套数组 `[[Int64("1")]]` + 默认 deserialize | `[[1n]]` |
-| N8 | ser `object-type-property` / de `object-fallback-all` | 分别降级为 unsafe-only / native |
+| N8 | 序列化 `object-type-property` / 反序列化 `object-fallback-all` | 分别降级为 unsafe-only / native |
 
 ---
 

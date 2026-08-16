@@ -14,11 +14,13 @@ TASON 同时谈「应用里长什么样」和「文本里怎么写」两层：
 | --- | --- | --- |
 | **运行时类型 RuntimeType** | JS 内存中的值的类型（**尽可能准确**） | `number` / `bigint` / **`instance(RegExp)` → RegExp 实例** |
 | **运行时契约 Schema** | 现成库描述的**期望形状**，只表达 RuntimeType，**不写 TypeName** | Valibot：`v.object({ id: v.bigint(), re: v.instance(RegExp), when: v.date() })` |
-| **TASON 类型名称 TypeName** | Registry 注册名；文本中 TypeInstance 的名字 | `Int64`、`RegExp`、`User` |
-| **TASON 类型实例 TypeInstance** | TASON 中带类型名的值语法，分为 Scalar / Object 两种 | `Int64("1")`、`RegExp("/a/")`、`User({…})` |
-| **字面量** | 无类型名前缀的 JSON 式写法 | `1`、`"a"`、`{ x: 1, y: 2 }` |
-| **数值处理 Number Handling** | 何时用 TypeName 装箱、何时拆成原生值 | 序列化：`unsafe-only`…；反序列化：`object-fallback-native` / `native`… |
-| **映射** | RuntimeType ↔ TypeInstance 或字面量（**交叉关系**；由 **Registry** 负责） | `bigint` ↔ `Int64`/`BigInt`；`instanceof RegExp` ↔ TypeName `RegExp` |
+| **TASON类型名称 TypeName** | Registry 注册名；文本中 TypeInstance 的名字 | `Int64`、`RegExp`、`User` |
+| **TASON类型实例 TypeInstance** | TASON 中带类型名的值语法，分为 标量类型 / 对象类型 两种 | `Int64("1")`、`RegExp("/a/g")`、`User({…})` |
+| **标量类型 ScalarType** | TypeInstance 的一种：用字符串参数构造，简称**Scalar** | `Int64("1")`、`ObjectId("…")` |
+| **对象类型 ObjectType** | TypeInstance 的一种：用对象字面量构造，简称**OT** | `User({…})` |
+| **（裸）字面量 / 裸值** | 无类型名前缀的 JSON 式写法，和JS运行时原生值一致，通常和装箱对应 | `1`、`"a"`、`{ x: 1, y: 2 }` |
+| **数值处理 Number Handling** | 针对内置数值类型，何时用 TypeName 装箱、何时拆成原生值 | 序列化：`unsafe-only`…；反序列化：`object-fallback-native` / `native`… |
+| **装箱 / 拆箱** | 写出 TypeName 包装，或还原成 `number` / `bigint` 等原生值 | `Int64("1")` ↔ `1n` |
 
 class 实例字段用 **`instance(Ctor)`**（Date 可用库提供的 `date()`），adapter 返回 `runtimeType: "instance"` + `instanceCtor`；**转成 TypeName 一律走 Registry**（`findTypeNameByCtor` / `tryGetTypeInfo`）。
 
@@ -50,14 +52,14 @@ class 实例字段用 **`instance(Ctor)`**（Date 可用库提供的 `date()`）
 
 ---
 
-## 字面量的含义
+## （裸）字面量的含义
 
 TASON 里所有 JSON 风格字面量都表示「**已经带有、无需再描述的准确类型**」，不是没有类型信息的载体：
 
 | 字面量 | 含义 | **禁止** |
 | --- | --- | --- |
 | 数字 `1` / `1.5` | 一定是某种**数字** RuntimeType | — |
-| 字符串 `"…"` | **只**是字符串 | 用 `"1"` 表示数字；用 RFC3339 表示 Date；用 `"/a/i"` 表示 RegExp |
+| 字符串 `"…"` | **只**是字符串 | 用 `"1"` 表示数字（特别是Int64）；用 ISO8601/RFC3339格式 表示 Date；用 `"/a/i"` 表示 RegExp |
 | 布尔 / null / 对象 / 数组字面量 | 即其本身结构 | 用对象字面量冒充已注册 ObjectType（除非再包 TypeName） |
 
 Date、RegExp、UUID、Buffer 等 JSON 表达不了的类型，必须写 **TypeInstance**（`Date("…")`、`RegExp("/a/")`…）。  
@@ -67,7 +69,7 @@ Date、RegExp、UUID、Buffer 等 JSON 表达不了的类型，必须写 **TypeI
 
 ## 鸭子类型与多实现
 
-「鸭子类型」是 contract / 结构相容的**通用说法**，文档可以写；**不要**把它塞进代码标识符。
+「鸭子类型」是 协定 / traits / 结构相容的**通用说法**，文档可以写；**不要**把它塞进代码标识符。
 
 同一 TypeName 下可以注册多种 JS 实现（官方包装、`bson.Long` 等）。这和 Schema 层无关：Schema 只描述 RuntimeType，不指定「parse 出来是哪一个类」。
 
@@ -91,14 +93,23 @@ API 形状与行为矩阵见 [runtime-type/phase-3-duck-types.md](./runtime-type
 
 ---
 
-## 其它常用说法
+## 其它衍生/外部说法
 
 | 说法 | 含义 |
 | --- | --- |
-| **Scalar / 标量** | TypeInstance 的一种：用字符串参数构造，如 `Int64("1")`、`ObjectId("…")` |
-| **ObjectType / 对象类型** | TypeInstance 的一种：用对象字面量构造，如 `User({…})` |
-| **装箱 / 拆箱** | 写出 TypeName 包装，或还原成 `number` / `bigint` 等原生值 |
+| **映射** | RuntimeType ↔ TypeInstance 或字面量（**交叉关系**；由 **Registry** 负责），如 `bigint` ↔ `Int64`/`BigInt`、`instanceof RegExp` ↔ TypeName `RegExp` |
+| **OT 上下文** | ObjectType **成员路径**（字段位置）。Number Handling 部分模式在该路径与值级行为不同 |
+| **OTP** | 序列化选项 `object-type-property` 的缩写；OT 内 ≈ `all`，OT 外 ≈ `unsafe-only` |
+| **值级 / 值级路径** | 非 OT 上下文的位置（根值、数组元素等）；值级 `object-fallback-*` ≈ `native` |
+| **裸写** | 不带 TypeName 写入裸字面量，与「装箱」相对：`1` 而非 `Int64("1")` |
+| **数值 TypeName** | Handling 的生效范围：按内置数值类型名名单（`NUMBER_TYPE_NAMES`）判定，与该名下挂的是哪种实现无关 |
+| **命中 / 扫描顺序** | stringify 兜底扫描按「TypeName 插入序 × 名内 `types[]` 顺序」取第一个 `instanceof` ∧ `match` 成功项；命中结果与谁是默认实现无关 |
 | **`_t`** | 文档映射层给 ObjectType 节点写的类型标记（默认键名）；不是 TASON 文本语法。见 [polymorphic-persistence](./polymorphic-persistence/) |
 | **BSON 类型码** | 协议里的封闭集合（`objectId` = 7、`long` = 18…）。不能在库或 TASON 里发明新码。清单与适配见 [phase-c-bson-types](./monorepo/phase-c-bson-types.md) |
-| **`binData` 用户子类型** | 子类型 128–255：协议允许的自定义载荷槽，底层仍是类型码 5。TASON 默认当 `Buffer`；要独立 TypeName 用 TypeInfo.`match` |
+| **`binData` 用户子类型** | BSON中Binary类型的子类型 128–255：协议允许的自定义载荷槽，底层仍是类型码 5。TASON 默认当 `Buffer`；要独立 TypeName 用 TypeInfo.`match` |
 | **TypeInfo.`match`** | 在 `instanceof ctor` 之后再认领实例。同一 JS 类对应多个 TypeName 时用（`Binary.sub_type`、`Long` vs `Timestamp`） |
+| **`replaceDefaultImplementation`** | `tason-mongodb` 注册选项：在追加实现的同时把 bson 类替换为对应 TypeName 的默认实现（内部走 `asDefault`） |
+| **`unwrapNumber`（未实施）** | 数值 TypeName 实现的统一拆箱契约，内置与第三方实现同轨；设计见 [phase-4-number-protocol](./runtime-type/phase-4-number-protocol.md) |
+| **wire type** | 二进制协议（Protobuf 等）里标记「这段数据按什么类型解释」的标签，是 TypeName 的对应物；TASON 是文本协议，正文不用此说法 |
+| **EJSON** | MongoDB 的 JSON 扩展表示，用 `$` 前缀对象包装非 JSON 类型；`BSONTimestamp` 的 `{t, i}` 与其 `$timestamp` 同构 |
+| **驱动提升 `promote*`** | `bson.deserialize` 读选项（`promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`），决定驱动读出的是原生值还是 bson 包装类 |

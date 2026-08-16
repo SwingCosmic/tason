@@ -3,7 +3,7 @@
 > **状态：阶段 A + B + C1 + C2 + C3 已完成；C4（依赖 runtime-type phase-4 数值协议）与 C 集成测试、阶段 D 待做**  
 > 概念入口：[README.md](./README.md)  
 > 类型清单：[phase-c-bson-types.md](./phase-c-bson-types.md)  
-> 姊妹实现：`E:\dev\VS2022\tason-net`（`TASON` + `TASON.Types.*` + `TASON.AspNetCore`）
+> 姊妹实现：[tason-net](https://github.com/SwingCosmic/tason-net)（`TASON` + `TASON.Types.*` + `TASON.AspNetCore`）
 
 本文件只跟踪 **仓库结构** 与 **`tason-mongodb`**。  
 核心 `asDefault` / `parseAs`、文档 `_t` 的进度不在这里勾选。
@@ -95,7 +95,7 @@ tason/                          # git 仓库根
       jest.config.cjs
       src/
       test/
-      lib/                      # build 输出（gitignore）
+      lib/                      # build 输出，勿手改
     tason-mongodb/
       package.json              # name: tason-mongodb
       tsconfig.json
@@ -248,7 +248,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | **Mongoose 内置** | `Types.Decimal128` **直接 re-export** `mongodb` 的 BSON Decimal128；`Types.ObjectId` 同族；`Schema.Types.*` 是配置，**不是**值类型 | ObjectId / Decimal128 等为 BSON 实例 |
 | **Mongoose `BigInt` SchemaType** | 存库为 BSON long，**内存为原生 `bigint`** | **不是** `Long` 实例 → 走核心 `bigint` / Int64 路径，不是 Mongo Long 的追加类型实现 |
 | **Mongoose `Int32` / `Double`** | Int32 常为 **number**；Double 常为 **`bson.Double` 包装** | 与「裸 number」不完全同一 |
-| **Mongoose UUID** | BSON Binary subtype 4；访问时可能 getter 成 **string** | ser 前注意是 Binary 还是 string |
+| **Mongoose UUID** | BSON Binary subtype 4；访问时可能 getter 成 **string** | 序列化前注意是 Binary 还是 string |
 | **Typegoose 等** | 建立在 Mongoose 之上，值类型仍是 `mongoose.Types.*` / bson | 同 Mongoose |
 | **EJSON / Extended JSON** | 文本形态 `{"$oid":"…"}` 等，**不是** TASON | 不互通；若需要可另做转换层，不进本包 P0 |
 
@@ -302,7 +302,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 层 | 文件 | 测什么 | 状态 |
 | --- | --- | --- | --- |
 | **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 | 已落地 |
-| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。矩阵与覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
+| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。行为矩阵见包 README（单一出处）；覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
 | 注册入口 | `register.test.ts` | catalog 命名 / `Buffer` 追加实现不动默认 / 未知 `include` 抛错 | 已落地 |
 | **C 集成** | `integration.test.ts`（待建） | 真实 `mongodb` 连接，或 mongoose `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary。无连接则 skip，不强制 CI 必装 | 未做 |
 
@@ -321,7 +321,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | A.1 | 根 `package.json`：`private` + `workspaces: ["packages/*"]` |
 | A.2 | 创建 `packages/tason/`，迁入 `src`、`test`、原 package 元数据、tsconfig、jest |
 | A.3 | 根保留 `tsconfig.base.json`；包内 extends；修正 `outDir` / `paths` / jest `moduleNameMapper` |
-| A.4 | `.gitignore`：`packages/*/lib`、`.antlr` 等；删除根级 `/lib` 规则或改为通配 |
+| A.4 | `.gitignore` 适配 monorepo 目录结构 |
 | A.5 | 根脚本：`build` / `test` / `generate` 代理到 workspace |
 | A.6 | 跑通 `yarn install`、`yarn workspace tason build`、`yarn workspace tason test` |
 | A.7 | 更新 `AGENTS.md` 源码地图与命令；根 README 加「仓库结构」一小节 |
@@ -400,16 +400,16 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ### 阶段 C4 — bson 数值类接入统一数值实现协议（依赖 runtime-type phase-4）
 
-**前提：** 核心「统一数值实现协议」（数值 TypeName 实现的统一契约 `TASONTypeInfo.unwrapNumber`、核心单轨化、多实现共存）由 runtime-type feature 实施——设计见 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，进度在该 feature 的 implementation-plan 勾选，**不在本文件**。协议落地后执行本阶段，并按分册 [§6 差异表](./phase-c-bson-types.md) 回改 §5.2 / §5.3 矩阵。
+**前提：** 核心「统一数值实现协议」（数值 TypeName 实现的统一契约 `TASONTypeInfo.unwrapNumber`、核心单轨化、多实现共存）由 runtime-type feature 实施——设计见 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，进度在该 feature 的 implementation-plan 勾选，**不在本文件**。协议落地后执行本阶段，并按分册 [§6 差异表](./phase-c-bson-types.md) 回改包 README 的行为矩阵。
 
 | # | 任务 |
 | --- | --- |
 | C4.1 | 前置确认：runtime-type phase-4 已实施（钩子字段 + 注册校验可用） |
 | C4.2 | 本包：`Int64` / `Int32` / `Float64` / `Decimal128` 四个 bson TypeInfo 声明钩子（Long → `toBigInt()`，禁 `valueOf`） |
-| C4.3 | 测试：M6 按分册 §6 差异表重写（ser 三档、de `native` 拆 bson 类、`all` 保留、replace 后仍拆） |
-| C4.4 | 文档同步：分册 §5.2 / §5.3 矩阵改为协议后行为、§6 差异表标记已落地、包 README「Handling」段 |
+| C4.3 | 测试：M6 按分册 §6 差异表重写（序列化三档、反序列化 `native` 拆 bson 类、`all` 保留、replace 后仍拆） |
+| C4.4 | 文档同步：包 README 行为矩阵改为协议后行为；分册 §6 差异表标记已落地 |
 
-**DoD：** 分册 §6 差异表全部转为现行行为并合入 §5.2 / §5.3；`none` 不再对 bson 类抛错；`native` 拆 `Long` → `bigint`；`all` 保 bson 类。
+**DoD：** 分册 §6 差异表全部转为现行行为并合入包 README 矩阵；`none` 不再对 bson 类抛错；`native` 拆 `Long` → `bigint`；`all` 保 bson 类。
 
 ### 阶段 D — 发布与文档抛光
 
@@ -466,7 +466,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 11. BSON Timestamp 的 TypeName 固定为 **`BSONTimestamp`**；`Long` 实现必须排除 `bson.Timestamp`（该类继承 `Long`）。  
 12. `binData` **按 subtype 拆**（C3）：UUID 在 C2 追加；MD5 / `BSONEncrypted` / `BSONSensitive` / `BSONVector` 独立；其余走核心 `Buffer`。**不**登记 DBRef。  
 13. 阶段 C 分四步：**C1** 新类型（ObjectId / Min·Max / Timestamp / JavaScript）→ **C2** 内置标量鸭子类型追加（含 UUID）→ **C3** Binary 子类型 → **C4** bson 数值类接入统一数值实现协议（依赖 runtime-type phase-4）。
-14. bson 数值类的 Handling 行为以 [分册 §6 差异表](./phase-c-bson-types.md) 为准：现行只认核心包装；协议（`unwrapNumber`）落地后 de `native` 拆 bson 类，且拆箱优先于 `replaceDefaultImplementation`（要保留 bson 类用 `deserializeNumberHandling: "all"` 或 `parseAs`）。协议本体的设计在 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，不在此维护。
+14. bson 数值类的 Handling 行为以 [分册 §6 差异表](./phase-c-bson-types.md) 为准：现行只认核心包装；协议（`unwrapNumber`）落地后反序列化 `native` 拆 bson 类，且拆箱优先于 `replaceDefaultImplementation`（要保留 bson 类用 `deserializeNumberHandling: "all"` 或 `parseAs`）。协议本体的设计在 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，不在此维护。
 15. `BSONTimestamp` 固定为 **object 形式** `{t, i}`，**不**随 `bson.Timestamp extends Long` 统一为 scalar 十进制串：文本形式跟 TypeName 的跨语言语义（(seconds, increment)，EJSON 同构），不跟 JS 继承链；继承只影响实例识别（`match` 拆分，见分册 §4.1）。
 
 ---

@@ -196,7 +196,7 @@ Visitor：自动路径不变；`parseAs` 传入 expected，TypeInstance 用 `get
 | D0 | `setDefaultType` / `asDefault` 后 parse 得新默认 |
 | D0b | 仅追加类型实现：parse 仍原默认 |
 | D0c | clone 后默认一致 |
-| D0d | 默认切换后多轮 ser/de 类型稳定 |
+| D0d | 默认切换后多轮序列化/反序列化类型稳定 |
 | D1 | 追加类型实现后 stringify 实例 → 正确 TypeName |
 | D2 | 未改默认时 builtin 无回归 |
 | D3 | `parseAs(FakeLong, …)`；全局默认未变 |

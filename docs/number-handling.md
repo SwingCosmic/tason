@@ -66,6 +66,10 @@ bare.stringify(42n); // 42
 | `Int64` / `BigInt` | `bigint` |
 | `Decimal128` | [`decimal.js`](https://github.com/MikeMcl/decimal.js) 的 `Decimal` |
 
+拆箱只作用于**核心数值包装**。同一 TypeName 可挂多种实现（如 [`tason-mongodb`](../packages/tason-mongodb/README.md) 的 `bson.Long`）：
+默认实现是核心包装时按上表拆箱；通过 `replaceDefaultImplementation` 等把默认实现换成 bson 类后，parse 不再拆箱。
+见 [类型系统 · 同一 TypeName 的多种实现](./type-system.md#同一-typename-的多种实现)。
+
 ### 示例
 
 ```ts

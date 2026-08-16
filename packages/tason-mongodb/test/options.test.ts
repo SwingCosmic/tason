@@ -155,14 +155,31 @@ describe("register options", () => {
     registerMongoDBTypes(none.registry);
     expect(() => none.stringify(long)).toThrow(/none/);
     expect(() => none.stringify(new Int32(42))).toThrow(/none/);
+    expect(() => none.stringify(new Double(1.5))).toThrow(/none/);
+    expect(() => none.stringify(Decimal128.fromString("1.25"))).toThrow(
+      /none/,
+    );
+    // none 只作用于数值路径，非数值 bson 类仍写 TypeName
+    expect(none.stringify(new ObjectId(OID_HEX))).toBe(
+      `ObjectId("${OID_HEX}")`,
+    );
+
+    // ser all：bson 数值类同样装箱（矩阵与 unsafe-only 同列）
+    const all = createSerializer({ serializeNumberHandling: "all" });
+    registerMongoDBTypes(all.registry);
+    expect(all.stringify(long)).toBe(`Int64("1")`);
 
     // 未 replace：de all 仍是核心包装
     const keep = createSerializer({ deserializeNumberHandling: "all" });
     registerMongoDBTypes(keep.registry);
     expect(keep.parse(`Int64("1")`)).toBeInstanceOf(TASON.Types.Int64.ctor);
     expect(keep.parse(`Int64("1")`)).not.toBeInstanceOf(Long);
+    expect(keep.parse(`Int32("42")`).constructor).toBe(TASON.Types.Int32.ctor);
+    expect(keep.parse(`Decimal128("1.25")`).constructor).toBe(
+      TASON.Types.Decimal128.ctor,
+    );
 
-    // replace 后 Handling 不再拆箱
+    // replace 后 Handling 不再拆箱（all 也不拆）
     const replaced = createSerializer({
       deserializeNumberHandling: "native",
     });
@@ -170,6 +187,12 @@ describe("register options", () => {
       replaceDefaultImplementation: { Int64: true },
     });
     expect(replaced.parse(`Int64("1")`)).toBeInstanceOf(Long);
+
+    const replacedAll = createSerializer({ deserializeNumberHandling: "all" });
+    registerMongoDBTypes(replacedAll.registry, {
+      replaceDefaultImplementation: { Int64: true },
+    });
+    expect(replacedAll.parse(`Int64("1")`)).toBeInstanceOf(Long);
   });
 
   test("promoteValues / useBigInt64", () => {

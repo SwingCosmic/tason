@@ -6,7 +6,7 @@
 > 本阶段在阶段 1 之上实现，不依赖其它 feature。
 
 实现 **ClassMetadata = 现成库 Schema** 作为接口约定，经 adapter 映射到 TypeName / TypeInstance（或字面量）。  
-语义对照 C#：`ITasonTypeMetadata` 告诉序列化 / 反序列化「成员有哪些、期望什么类型」；JS 用 **遍历 schema** 替代 **CLR 反射**（参考 `E:\dev\VS2022\tason-net`）。
+语义对照 C#：`ITasonTypeMetadata` 告诉序列化 / 反序列化「成员有哪些、期望什么类型」；JS 用 **遍历 schema** 替代 **CLR 反射**（参考 [tason-net](https://github.com/SwingCosmic/tason-net)）。
 
 | 子阶段 | 焦点 | 不做 | 状态 |
 | --- | --- | --- | --- |
@@ -86,7 +86,7 @@ A. 目录重构（纯移动 + import，行为零变更）
 
 | 边界 | 职责 |
 | --- | --- |
-| `TASONTypeInfo` | 类型如何 ser/de 自身 |
+| `TASONTypeInfo` | 类型如何序列化/反序列化自身 |
 | `metadata/` | 附加契约与装饰器 |
 | `schema/` | 解析 Schema 结构 + TypeName / TypeInstance 映射 |
 | `types/` | 内置类型实现 |
@@ -352,7 +352,7 @@ s.registry.registerType(
 | 叶子 `mapTypeInstanceToRuntime` / `mapRuntimeToTypeInstance` | `src/schema/map*.ts` | **已有**（bigint / number / decimal / instance） |
 | ObjectType + metadata 入口 | `TASONVisitor.ObjectTypeInstance` / `TASONGenerator.TypeInstanceValue` | **仅叶子**：`kind` 为 `object`/`array` 时 **透传不映射** |
 | 是否应用契约 | `shouldApplySchemaContract()` | `object-fallback-native` **或** `object-fallback-all` |
-| Handling 解析 | `NumberHandling.resolve*` | de：`object-fallback-all` 在 OT 内 ≈ all；ser：`object-type-property` 在 OT 内 ≈ all |
+| Handling 解析 | `NumberHandling.resolve*` | 反序列化：`object-fallback-all` 在 OT 内 ≈ all；序列化：`object-type-property` 在 OT 内 ≈ all |
 | 测试 S10–S17 | `test/runtime-schema.test.ts` | `PHASE_2_2=false` 的 **占位 skip 用例** |
 
 ### 缺口清单（2.2 必须填）
@@ -361,7 +361,7 @@ s.registry.registerType(
 | --- | --- | --- | --- |
 | G1 | Visitor 不递归结构 | `ObjectWithSchema` 对 `object` / `array` 字段直接 `pair.value` | 嵌套 object 再遍历；array 按 `arrayElement` 逐元素映射 |
 | G2 | Generator 不递归结构 | `ObjectValueWithSchema` 对 `object`/`array` 走普通 `Value` | 嵌套 object / 数组元素按契约写出 |
-| G3 | Array 无 schema 通道 | `Array` / 数组写出无 element schema | 新增带 element schema 的 ser/de 路径 |
+| G3 | Array 无 schema 通道 | `Array` / 数组写出无 element schema | 新增带 element schema 的序列化/反序列化路径 |
 | G4 | OTP 全局降级 | `resolveSerialize/Deserialize*` 不看上下文 | **有 ObjectType 字段上下文**时 OTP ≈ all；外层仍降级 |
 | G5 | object-fallback-native 语义不完整 | 有契约叶子已映射；无契约路径仍靠全局 native 拆箱 | 契约路径完整；无契约 = 阶段 1（可保留 resolve 降级） |
 | G6 | 边界未钉 | Int64→number 超安全整数、非整数→bigint 等 | 默认策略写入下文并测 S16 |
@@ -397,7 +397,7 @@ object-fallback-all       → 有契约 → RuntimeType；无契约 → OT 内 a
 - ClassMetadata / schema 是 **RuntimeType 契约**，不是可被 fallback 挤掉的可选提示。
 - 两档 `object-fallback-*` 仅在 **无字段契约** 时不同（native vs ObjectType 内 all）。
 - **`objectTypeDepth`** 只服务「无契约 + object-fallback-all」路径，**不**用来覆盖 schema。
-- 序列化侧名称仍为 **`object-type-property`**（与 .NET 一致），勿与 de 的 `object-fallback-all` 混淆。
+- 序列化侧名称仍为 **`object-type-property`**（与 .NET 一致），勿与反序列化的 `object-fallback-all` 混淆。
 
 ### 序列化
 
@@ -472,7 +472,7 @@ A. Handling 上下文（resolve* + 调用点传 inObjectType）
 | **A3** | `shouldApplySchemaContract`：`object-fallback-native` **与** `object-fallback-all` | `TASONVisitor.ts` | 有契约字段收到 RuntimeType；无契约 object-fallback-all 仍 OT≈all |
 | **B1** | `toNumber`：bigint 超 `MAX_SAFE_INTEGER` 抛错（安全整数才收） | `mapTypeInstanceToRuntime.ts` | S16 |
 | **B2** | `toBigInt`：非整数 number/Decimal 抛错（已有整数检查则核对） | 同上 | 交叉测 |
-| **B3** | 序列化 map 与 § 序列化表一致；`number` 永不默认 Int32 | `mapRuntimeToTypeInstance.ts` | 既有 S4 + S13 ser 抽样 |
+| **B3** | 序列化 map 与 § 序列化表一致；`number` 永不默认 Int32 | `mapRuntimeToTypeInstance.ts` | 既有 S4 + S13 序列化抽样 |
 | **C1** | `ObjectWithSchema`：`kind === "object"` → 子 schema 再 `ObjectWithSchema`；值须为 plain object bag | `TASONVisitor.ts` | S12 |
 | **C2** | `kind === "array"` → `ArrayWithSchema(values, elementSchema)` | 同上 | S10 / S11 |
 | **C3** | `ArrayWithSchema`：对每个元素看 element 的 `runtimeType`；叶子 map；嵌套 array/object 再递归 | 同上 | 多维 |
@@ -526,7 +526,7 @@ const it22 = PHASE_2_2 ? it : it.skip;
 - [x] A1–A3：object-fallback-* / 序列化 object-type-property 语义与 §2.2.1 一致；无上下文路径不回归
 - [x] C1–C4 / D1–D2：数组与嵌套 object 遍历正确（S10–S12）
 - [x] B1–B3 + S13/S16：数值族与边界符合默认策略  
-- [x] S14–S15：ser OTP + de object-fallback-all 上下文语义  
+- [x] S14–S15：序列化 OTP + 反序列化 object-fallback-all 上下文语义  
 - [x] S17 + 阶段 1 测：无契约回退  
 - [x] 映射与设计 §4.3 / §4.4 一致；无第二套 TASON 字段 DSL  
 - [x] `PHASE_2_2` 解锁；S10–S17 全部真实断言  
@@ -537,8 +537,8 @@ const it22 = PHASE_2_2 ? it : it.skip;
 | 能力 | 路径 |
 | --- | --- |
 | Handling 上下文 | `NumberHandling.resolve*(h, { inObjectType? })` |
-| 递归 de | `TASONVisitor` · `ObjectWithSchema` / `ArrayWithSchema` |
-| 递归 ser | `TASONGenerator` · `ObjectValueWithSchema` / `ArrayValueWithSchema` |
+| 递归反序列化 | `TASONVisitor` · `ObjectWithSchema` / `ArrayWithSchema` |
+| 递归序列化 | `TASONGenerator` · `ObjectValueWithSchema` / `ArrayValueWithSchema` |
 | 叶子边界 | `mapTypeInstanceToRuntime` / `mapRuntimeToTypeInstance` |
 | 测试 | `test/runtime-schema.test.ts`（S10–S17 已启用真实断言） |
 

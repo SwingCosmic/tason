@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { Binary } from "bson";
+import { Binary, Long } from "bson";
 import TASON from "tason";
 import {
   ALL_MONGO_TYPE_NAMES,
@@ -25,6 +25,28 @@ describe("registerMongoDBTypes", () => {
     expect(s.registry.getDefaultType("Buffer")).toBe(before);
     expect(s.registry.getAllTypes("Buffer")).toHaveLength(2);
     expect(s.registry.getDefaultType("MD5")!.ctor).toBe(Binary);
+  });
+
+  test("repeated registration is idempotent", () => {
+    const s = createSerializer();
+    registerMongoDBTypes(s.registry);
+    const sizes = Object.fromEntries(
+      ALL_MONGO_TYPE_NAMES.map((n) => [n, s.registry.getAllTypes(n).length]),
+    );
+
+    // 第二次调用按 ctor 幂等更新：不堆积、不改默认
+    registerMongoDBTypes(s.registry);
+    for (const [name, size] of Object.entries(sizes)) {
+      expect(s.registry.getAllTypes(name)).toHaveLength(size);
+    }
+    expect(s.parse(`Int64("1")`)).toBe(1n);
+
+    // 第二次带 replaceDefault：默认切换且仍不堆积
+    registerMongoDBTypes(s.registry, {
+      replaceDefaultImplementation: { Int64: true },
+    });
+    expect(s.registry.getAllTypes("Int64")).toHaveLength(sizes.Int64);
+    expect(s.parse(`Int64("1")`)).toBeInstanceOf(Long);
   });
 
   test("unknown include", () => {

@@ -78,7 +78,7 @@ parseAs(expected: Constructor | string, text): T
 
 ## 来源与 C# 对照（摘要）
 
-本功能自 **`E:\dev\VS2022\tason-net`**（`TASON/`）迁移，按 JS 能力改造。
+本功能自 **[tason-net](https://github.com/SwingCosmic/tason-net)**（`TASON/`）迁移，按 JS 能力改造。
 
 | C# | JS 目标 | 备注 |
 | --- | --- | --- |
@@ -173,4 +173,4 @@ src/
 | [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 |
 | [phase-4-number-protocol.md](./phase-4-number-protocol.md) | 阶段 4（统一数值实现协议，未实施） |
 | [type-system.md](../../type-system.md) | 规范 |
-| `E:\dev\VS2022\tason-net` | C# 参考实现 |
+| [tason-net](https://github.com/SwingCosmic/tason-net) | C# 参考实现 |

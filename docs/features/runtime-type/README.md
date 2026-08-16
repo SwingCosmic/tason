@@ -17,4 +17,4 @@ BSON 类型实现、文档 `_t` 不在这里跟踪。
 | [phase-2-class-metadata-schema.md](./phase-2-class-metadata-schema.md) | 阶段 2 · Class 元数据 + schema |
 | [phase-3-duck-types.md](./phase-3-duck-types.md) | 阶段 3 · 鸭子类型 / 默认实现 / parseAs |
 
-C# 参考：`E:\dev\VS2022\tason-net`
+C# 参考：[tason-net](https://github.com/SwingCosmic/tason-net)

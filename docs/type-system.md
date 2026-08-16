@@ -197,13 +197,63 @@ TASON类型实例包括两大类：标量类型(ScalarTypeInstance)和对象类�
 
 ## 同一 TypeName 的多种实现
 
-同一 TypeName 可挂多个 JavaScript 实现（例如核心 `Int64` 包装与日后的 `bson.Long`）：
+TASON 类型名与语言实现解耦：同一名称的类型实例可以有多种不同的 JavaScript 实现，即**鸭子类型**（duck type）。
+例如定义一个 TASON `Color` 类型实例，可以把自定义的 `RGBColor` 和第三方库的颜色类都注册为 `Color`；
+[`tason-mongodb`](../packages/tason-mongodb/README.md) 也是用同样的方式，把 `bson.Long` 等挂到核心 `Int64` 等名下。
 
-- 再 `registerType` 同名 = **追加类型实现**（`stringify` 认实例；`parse` 仍用当前默认）。
-- `registerType(..., { asDefault: true })` / `setDefaultType` 可更换默认实现。
-- 单次选型用 `parseAs(ctor | TypeName, text)`，不改变全局默认。
+类型注册表中，每个 TypeName 维护一个实现列表，`types[0]` 即**默认实现**：
 
-扩展包（如 [`tason-mongodb`](../packages/tason-mongodb/README.md)）通过 `registerMongoDBTypes` 使用上述 API；BSON 类型实现见该包 README。
+| 操作 | API | 说明 |
+| --- | --- | --- |
+| 注册 / 追加实现 | `registerType(name, typeInfo)` | 新名称首次注册即成为默认实现；同名再注册为**追加类型实现**，不改当前默认。同一构造函数重复注册按更新处理（幂等） |
+| 替换默认实现 | `registerType(..., { asDefault: true })` / `setDefaultType` / `setDefaultTypeByCtor` | 把某个实现提升为 `types[0]`，对该 registry 全局生效 |
+| 单次选型 | `serializer.parseAs(ctorOrTypeName, text)` / `getTypeInfoByCtor` | 按期望构造函数（或 TypeName）选择实现，不改变全局默认 |
+| 查询 | `getDefaultType` / `getAllTypes` | 默认实现 / 全部实现 |
+
+### 序列化：按实例识别
+
+`stringify` 从实例出发，在实现列表中查找（`instanceof` 命中，且通过 TypeInfo 上可选的 `match` 过滤），命中哪个实现就写出该 TypeName。
+因此追加实现后无需额外配置，`stringify(new Long(...))` 即可写出 `Int64("...")`。
+
+当多个 TypeName 的实现共享构造函数或存在继承时，必须用 `match` 拆分，并保证各实现 `match` 互斥。
+典型例子是 `bson.Timestamp` 继承自 `bson.Long`：`Int64` 的 bson 实现 `match` 排除 `_bsontype === "Timestamp"`，
+让 `Timestamp` 实例落到 `BSONTimestamp` 而不是 `Int64`。
+
+### 反序列化：按默认实现构造
+
+`parse` 遇到类型实例时，总是使用该 TypeName 的**默认实现**构造。要让 parse 得到某个追加实现，可以：
+
+* **替换默认实现**：`asDefault` / `setDefaultType` / `setDefaultTypeByCtor`
+* **单次指定**：`serializer.parseAs(ctorOrTypeName, text)`。传入基类时按「实现是其子类」回退命中，
+  相当于 C# 多态反序列化（指定抽象类 / 接口 `T`）在 JS 中的对应子集
+
+```typescript
+import TASON from "tason";
+import { registerMongoDBTypes } from "tason-mongodb";
+import { Long } from "bson";
+
+registerMongoDBTypes(TASON.registry);               // 追加：stringify 认 bson.Long，parse 仍核心默认
+TASON.parseAs(Long, `Int64("1")`);                  // 单次选型：得到 bson.Long，不改全局默认
+
+TASON.registry.setDefaultTypeByCtor("Int64", Long); // 替换默认实现：此后 parse('Int64("1")') 得到 bson.Long
+```
+
+### 别名
+
+`registerTypeAlias(name, originName)` 注册的别名与原名共享同一实现列表：对原名追加或替换实现，别名同步可见（如 `Long` ↔ `Int64`）。
+
+### 与 C# 实现的对照
+
+| C#（[tason-net](https://github.com/SwingCosmic/tason-net)） | JavaScript（本仓库） | 说明 |
+| --- | --- | --- |
+| 注册顺序：默认类型 → 别名 → 鸭子类型；默认实现 = 首个注册 | `asDefault` 显式置顶 | C# 靠注册顺序决定默认；JS 显式提升，追加实现不依赖注册顺序 |
+| `GetDefaultType(name)` | `getDefaultType(name)` | 均取实现列表第一个 |
+| `GetType(name, Type)` | `getTypeInfoByCtor(name, ctor)` | 按期望类型选实现（子类回退） |
+| `Deserialize<T>`（指定类型模式） | `parseAs(ctor, text)` | 指定类型反序列化 |
+| 内置鸭子类型：`Timestamp` ← `DateTimeOffset`、`UInt16` ← `Char` | 扩展包追加：`Int64` ← `bson.Long` 等 | C# 在内置表注册；JS 生态数值库众多，多实现交给扩展包与用户 |
+
+扩展包（如 [`tason-mongodb`](../packages/tason-mongodb/README.md)）通过 `registerMongoDBTypes` 使用上述 API，
+并提供 `replaceDefaultImplementation` 选项一次性完成「注册 + 替换默认」；BSON 类型实现与选项矩阵见该包 README。
 
 ## 扩展类型
 

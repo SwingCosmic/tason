@@ -11,7 +11,7 @@
 **内置数值实现与第三方可替换实现走同一契约、同一逻辑。**
 
 - JS 的 Int64 / Decimal 第三方实现众多（`bson` / `long.js` / `big.js` / `bignumber.js` …），任何一方挂到数值 TypeName 下都**无需改动核心**即获得完整 Number Handling 行为。
-- 同一数值 TypeName 下允许多种实现（不止两种）共存，且 ser / de 行为一致。
+- 同一数值 TypeName 下允许多种实现（不止两种）共存，且序列化/反序列化行为一致。
 - 消除核心对内置数值包装的特权路径（单轨化）。
 
 ## 2. 现状（双轨）
@@ -27,12 +27,12 @@ Handling 的**作用域判定**已按 TypeName（Generator 命中数值 TypeName
 
 | 路径 | 位置 | 处数 |
 | --- | --- | --- |
-| 值级 de | `TASONVisitor.finishInstance` → `unwrapNumberInstance` | 1 |
-| 值级 ser | `TASONGenerator` 数值 TypeName 分支 → `trySerializeNumberAsSafeNumberLiteral` / `trySerializeNumberAsLiteral` | 2 |
-| 契约 de | `schema/mapTypeInstanceToRuntime.ts`（`toBigInt` / `toNumber` / `toDecimal`） | 3 |
-| 契约 ser | `schema/mapRuntimeToTypeInstance.ts` | 3 |
+| 值级反序列化 | `TASONVisitor.finishInstance` → `unwrapNumberInstance` | 1 |
+| 值级序列化 | `TASONGenerator` 数值 TypeName 分支 → `trySerializeNumberAsSafeNumberLiteral` / `trySerializeNumberAsLiteral` | 2 |
+| 契约反序列化 | `schema/mapTypeInstanceToRuntime.ts`（`toBigInt` / `toNumber` / `toDecimal`） | 3 |
+| 契约序列化 | `schema/mapRuntimeToTypeInstance.ts` | 3 |
 
-外部数值类不参与 Handling 的直接后果（`tason-mongodb` 视角，差异表见其 §6）：ser `unsafe-only` 下安全整数也装箱、`none` 抛错；`replaceDefaultImplementation` 置顶 bson 实现后，`deserializeNumberHandling: "native"` 拿到的永远是 bson 实例，**自动拆箱无法实现**。
+外部数值类不参与 Handling 的直接后果（`tason-mongodb` 视角，差异表见其 §6）：序列化 `unsafe-only` 下安全整数也装箱、`none` 抛错；`replaceDefaultImplementation` 置顶 bson 实现后，`deserializeNumberHandling: "native"` 拿到的永远是 bson 实例，**自动拆箱无法实现**。
 
 ## 3. 方案：TypeInfo 统一契约 `unwrapNumber`
 
@@ -62,8 +62,8 @@ unwrapNumber?: (value: T) => number | bigint | Decimal;
 
 | 侧 | 位置 | 改动 |
 | --- | --- | --- |
-| de | `TASONVisitor.finishInstance` → `unwrapNumberInstance` | 传入 `typeInfo`；`native` 时执行 `typeInfo.unwrapNumber(instance)` |
-| ser | `TASONGenerator` 数值 TypeName 分支 → `trySerializeNumberAs*Literal` | 字面量尝试前先用钩子归一化，再走既有 number / bigint / Decimal 字面量规则（安全 / 无损判定复用，不另造一套） |
+| 反序列化 | `TASONVisitor.finishInstance` → `unwrapNumberInstance` | 传入 `typeInfo`；`native` 时执行 `typeInfo.unwrapNumber(instance)` |
+| 序列化 | `TASONGenerator` 数值 TypeName 分支 → `trySerializeNumberAs*Literal` | 字面量尝试前先用钩子归一化，再走既有 number / bigint / Decimal 字面量规则（安全 / 无损判定复用，不另造一套） |
 | 契约路径 | `mapTypeInstanceToRuntime` / `mapRuntimeToTypeInstance` 的 `toBigInt` / `toNumber` / `toDecimal` | 入口先经钩子归一化到原生值，再按既有规则收敛；避免值级 / 契约级第三条分叉 |
 
 设计要点：
@@ -86,13 +86,13 @@ unwrapNumber?: (value: T) => number | bigint | Decimal;
 
 **不变式：钩子取自「实际构造 / 命中该实例的那个 TypeInfo」，不是全局 `types[0]`。**
 
-de（`parse('Int64("1")')`，replaceDefault 开、handling `native`）：
+反序列化（`parse('Int64("1")')`，replaceDefault 开、handling `native`）：
 
 1. `resolveTypeInfo("Int64")` → `getDefaultType` 得 bson Long 实现（或 `parseAs(Long)` 指定）。
 2. `createInstance` → 该实现的 `deserialize` 构造 `bson.Long`。
 3. `unwrapNumberInstance`：`native` → 该 TypeInfo 的钩子 `Long.toBigInt()` → `bigint`。replaceDefault 关时同一文本构造核心包装（钩子 `v => v.value`）→ 同样 `bigint`。殊途同归：拆箱结果与 `types[0]` 无关。
 
-ser（`stringify(Long.fromInt(1))`，handling `unsafe-only`）：
+序列化（`stringify(Long.fromInt(1))`，handling `unsafe-only`）：
 
 1. `tryGetTypeInfo` 从实例命中 `(Int64, bson Long 实现)`——按 `instanceof` ∧ `match`，与 `types[0]` 无关。
 2. `isNumberTypeName("Int64")` 成立 → 进入 Handling 分支。
@@ -103,7 +103,7 @@ ser（`stringify(Long.fromInt(1))`，handling `unsafe-only`）：
 
 设想：扩展包注册时对 `bson.Long.prototype` 等以 Symbol 键 `defineProperty` 挂「数值标记 + `unwrap` 方法」，核心判 `value[KEY]` 是否为函数。评估：
 
-- **性能不是决策因素。** 两个消费点均已持有命中的 TypeInfo，钩子读取是一次属性访问，与原型方法查找同级；ser 真正的开销是 `tryGetTypeInfo` 的双层 `instanceof` 扫描，两方案都不改变它。de 侧对未实现协议的核心包装，原型 miss 反而多走一整条原型链。
+- **性能不是决策因素。** 两个消费点均已持有命中的 TypeInfo，钩子读取是一次属性访问，与原型方法查找同级；序列化真正的开销是 `tryGetTypeInfo` 的双层 `instanceof` 扫描，两方案都不改变它。反序列化侧对未实现协议的核心包装，原型 miss 反而多走一整条原型链。
 - **对第三方库自身运行无影响**：Symbol 键、不可枚举、不覆盖既有成员、幂等，`bson.serialize` / `deserialize` 只读实例自有状态。
 - **风险在包边界**：双份 `bson` 时只有被打补丁那份副本的实例带标记，另一份**静默**退化为不拆箱 / 装箱（与 `instanceof` 失效同源，但没有报错线索，更难排查）；补丁常驻进程、无清理时机；`bson` 的 `.d.ts` 无法声明该方法，核心判断处需 `any` 断言。
 - **结论：** 统一协议走 TypeInfo——不碰第三方原型、TS 类型可直接表达、与「TypeInfo 是扩展点」的架构一致，且内置与第三方同轨（§3 单轨化）。若将来出现**无 TypeInfo** 的鸭子数值（用户自有类直接 stringify），可把实例协议加为次级回退（钩子 → 实例协议），二者不冲突。
@@ -124,9 +124,9 @@ ser（`stringify(Long.fromInt(1))`，handling `unsafe-only`）：
 | # | 任务 | 归属 |
 | --- | --- | --- |
 | 4.1 | `unwrapNumber` 契约字段；内置数值 TypeInfo 全量声明（包装 `v => v.value`、`BigInt` 恒等 `v => v`）；删除 `isNumberWrapper` / `.value` 特权路径——§2 表中 9 处调用点一并迁移到钩子归一化；数值名注册缺钩子抛错 | `packages/tason` |
-| 4.2 | 测试：以「模拟第三方数值类」测多实现（≥3）共存与 ser/de 行为一致性（`number-handling.test.ts`）；既有 Handling / schema 矩阵全绿 | `packages/tason` |
+| 4.2 | 测试：以「模拟第三方数值类」测多实现（≥3）共存与序列化/反序列化行为一致性（`number-handling.test.ts`）；既有 Handling / schema 矩阵全绿 | `packages/tason` |
 | 4.3 | 文档同步：phase-1（Handling 语义补「按 TypeName 覆盖全部实现」）、本文状态、`docs/number-handling.md`、`docs/type-system.md` 多实现短节 | docs |
 
 tason-mongodb 侧跟进（bson 钩子、M6 重写、包 README）属 monorepo feature，见其 plan 阶段 C4，不在此勾选。
 
-**DoD：** 核心无数值特权路径；模拟第三方实现与内置行为一致（ser 三档、de `native` 拆箱 / `all` 保留）；数值名缺钩子注册抛错；既有 Handling / schema 测试全绿。
+**DoD：** 核心无数值特权路径；模拟第三方实现与内置行为一致（序列化三档、反序列化 `native` 拆箱 / `all` 保留）；数值名缺钩子注册抛错；既有 Handling / schema 测试全绿。

@@ -111,7 +111,7 @@ type RuntimeType =
 | 方法 | 职责 |
 | --- | --- |
 | `isSchema` | 过滤无关值；无法识别时契约整体忽略（不抛错） |
-| `objectEntries` | 供 ser/de 遍历实体字段 |
+| `objectEntries` | 供序列化/反序列化遍历实体字段 |
 | `arrayElement` | 供数组元素按同一契约映射 |
 | `runtimeType` | 叶子映射依据（`bigint` → 收成 `bigint` 等） |
 | `instanceCtor` | `Date` / `RegExp` 等实例字段 |

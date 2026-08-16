@@ -63,7 +63,7 @@ class Dog extends Animal {
 
 describe("multi implementation", () => {
   describe("default implementation", () => {
-    test("setDefaultType and asDefault change parse default", () => {
+    test("asDefault / setDefaultType", () => {
       const s = createSerializer({ deserializeNumberHandling: "all" });
       s.registry.registerType("Int64", fakeLongInfo, undefined, {
         asDefault: true,
@@ -76,7 +76,7 @@ describe("multi implementation", () => {
       expect(s2.parse(`Int64("1")`)).toBeInstanceOf(FakeLong);
     });
 
-    test("append implementation keeps original parse default", () => {
+    test("append keeps default", () => {
       const s = createSerializer({ deserializeNumberHandling: "all" });
       s.registry.registerType("Int64", fakeLongInfo);
       const parsed = s.parse(`Int64("1")`);
@@ -84,7 +84,7 @@ describe("multi implementation", () => {
       expect(parsed).not.toBeInstanceOf(FakeLong);
     });
 
-    test("clone preserves default implementation order", () => {
+    test("clone preserves default order", () => {
       const s = createSerializer({ deserializeNumberHandling: "all" });
       s.registry.setDefaultType("Int64", fakeLongInfo);
       const cloned = s.registry.clone();
@@ -97,7 +97,8 @@ describe("multi implementation", () => {
       expect(s2.parse(`Int64("1")`)).toBeInstanceOf(FakeLong);
     });
 
-    test("default switch stays stable across ser/de rounds", () => {
+    test("default switch round-trip", () => {
+      // 换默认后 ser/de 往返仍稳定落在同一实现
       const s = createSerializer({
         serializeNumberHandling: "all",
         deserializeNumberHandling: "all",
@@ -115,7 +116,7 @@ describe("multi implementation", () => {
   });
 
   describe("append implementation stringify", () => {
-    test("stringify recognizes additional implementation instance", () => {
+    test("additional instance", () => {
       const s = createSerializer({ serializeNumberHandling: "all" });
       s.registry.registerType("Int64", fakeLongInfo);
       expect(s.stringify(new FakeLong("42"))).toBe(`Int64("42")`);
@@ -123,7 +124,7 @@ describe("multi implementation", () => {
   });
 
   describe("builtin without default change", () => {
-    test("builtin Int64 parse and stringify unchanged", () => {
+    test("builtin Int64", () => {
       const s = createSerializer();
       s.registry.registerType("Int64", fakeLongInfo);
       expect(s.parse(`Int64("1")`)).toBe(1n);
@@ -134,8 +135,56 @@ describe("multi implementation", () => {
     });
   });
 
+  describe("registration invariants", () => {
+    test("same ctor re-registration", () => {
+      const s = createSerializer({ deserializeNumberHandling: "all" });
+      s.registry.registerType("Int64", fakeLongInfo);
+      s.registry.registerType("Int64", fakeLongInfo);
+      expect(s.registry.getAllTypes("Int64")).toHaveLength(2);
+
+      // 重复 asDefault 同样不堆积，默认保持该实现
+      s.registry.registerType("Int64", fakeLongInfo, undefined, {
+        asDefault: true,
+      });
+      s.registry.registerType("Int64", fakeLongInfo, undefined, {
+        asDefault: true,
+      });
+      expect(s.registry.getAllTypes("Int64")).toHaveLength(2);
+      expect(s.registry.getDefaultType("Int64")!.ctor).toBe(FakeLong);
+    });
+
+    test("alias shares implementation list", () => {
+      const s = createSerializer({ deserializeNumberHandling: "all" });
+      s.registry.registerTypeAlias("MyLong", "Int64");
+
+      // 经原名追加，别名列表同步
+      s.registry.registerType("Int64", fakeLongInfo);
+      expect(s.registry.getAllTypes("MyLong")).toStrictEqual(
+        s.registry.getAllTypes("Int64"),
+      );
+
+      // 经别名切换默认，原名 parse 跟随
+      s.registry.setDefaultTypeByCtor("MyLong", FakeLong);
+      expect(s.parse(`Int64("6")`)).toBeInstanceOf(FakeLong);
+      expect(s.parse(`MyLong("6")`)).toBeInstanceOf(FakeLong);
+    });
+
+    test("setDefaultTypeByCtor switch", () => {
+      const s = createSerializer({ deserializeNumberHandling: "all" });
+      s.registry.registerType("Int64", fakeLongInfo);
+
+      s.registry.setDefaultTypeByCtor("Int64", FakeLong);
+      expect(s.parse(`Int64("7")`)).toBeInstanceOf(FakeLong);
+
+      // 切回核心包装
+      s.registry.setDefaultTypeByCtor("Int64", Int64);
+      expect(s.parse(`Int64("7")`).constructor).toBe(Int64);
+    });
+  });
+
   describe("parseAs", () => {
-    test("selects implementation for one call without changing default", () => {
+    test("one-off selection", () => {
+      // 单次选型，不改变全局默认
       const s = createSerializer({ deserializeNumberHandling: "all" });
       s.registry.registerType("Int64", fakeLongInfo);
 
@@ -176,7 +225,7 @@ describe("multi implementation", () => {
       expect(s.parse(text)).toBeInstanceOf(Dog);
     });
 
-    test("match selects TypeName when implementations share a ctor", () => {
+    test("shared ctor match", () => {
       class Tagged {
         constructor(public tag: string) {}
       }
@@ -200,6 +249,53 @@ describe("multi implementation", () => {
       expect(s.parse(`A("a")`)).toEqual(new Tagged("a"));
     });
 
+    test("TypeName string form", () => {
+      const s = createSerializer({ deserializeNumberHandling: "all" });
+      s.registry.registerType("Int64", fakeLongInfo);
+
+      expect(s.parseAs("Int64", `Int64("1")`)).toBeInstanceOf(Int64);
+
+      // 别名与原名同 entry，字符串形式同样可用
+      expect(s.parseAs("Long", `Int64("1")`)).toBeInstanceOf(Int64);
+
+      // 换默认后字符串形式跟随默认实现
+      s.registry.setDefaultType("Int64", fakeLongInfo);
+      expect(s.parseAs("Long", `Int64("1")`)).toBeInstanceOf(FakeLong);
+
+      // 根 TypeInstance 属于其它 entry 时拒绝
+      expect(() => s.parseAs("Date", `Int64("1")`)).toThrow(
+        /Expected TypeName/,
+      );
+    });
+
+    test("same-TypeName subclass fallback", () => {
+      class Vehicle {
+        kind!: string;
+        constructor(init?: Partial<Vehicle>) {
+          if (init) Object.assign(this, init);
+        }
+      }
+      class Car extends Vehicle {
+        doors!: number;
+        constructor(init?: Partial<Car>) {
+          super(init);
+          if (init) Object.assign(this, init);
+        }
+      }
+      const s = createSerializer();
+
+      // 只注册子类实现：parseAs(基类) 按「实现是 expected 的子类」回退命中
+      s.registry.registerType("Vehicle", { kind: "object", ctor: Car });
+      expect(s.parseAs(Vehicle, `Vehicle({kind:"car"})`)).toBeInstanceOf(Car);
+
+      // 注册基类后精确匹配优先于子类回退
+      s.registry.registerType("Vehicle", { kind: "object", ctor: Vehicle });
+      expect(s.parseAs(Vehicle, `Vehicle({kind:"car"})`).constructor).toBe(
+        Vehicle,
+      );
+      expect(s.parseAs(Car, `Vehicle({kind:"car"})`)).toBeInstanceOf(Car);
+    });
+
     test("getTypeInfoByCtor and unmatched parseAs", () => {
       const s = createSerializer();
       expect(s.registry.getTypeInfoByCtor("Int64", FakeLong)).toBeUndefined();
@@ -217,7 +313,7 @@ describe("multi implementation", () => {
   });
 
   describe("setDefaultType unregistered", () => {
-    test("registers then promotes when typeInfo is new", () => {
+    test("register then promote", () => {
       const s = createSerializer({ deserializeNumberHandling: "all" });
       // 未在 Int64 列表中的全新实现：先注册再置顶
       s.registry.setDefaultType("Int64", fakeLongInfo);
