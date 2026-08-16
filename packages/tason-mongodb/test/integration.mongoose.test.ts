@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "@jest/globals";
 import { Binary, Decimal128, Long, ObjectId } from "bson";
 import mongoose from "mongoose";
+import mongooseLong from "mongoose-long";
 import {
   MD5_CHECKSUM,
   OID_ASSET,
@@ -23,8 +24,12 @@ import {
 /**
  * C 集成（mongoose）：请求文本 parseAs 实体后 Model.create；
  * lean() / toObject() 结果映射实体后 stringify 为 API 响应文本并回环。
+ * 另含 mongoose-long（Schema.Types.Long）路径：字段与数组的值即 bson.Long。
  * 连接信息与共享夹具见 integration.shared.ts / env.ts，未配置自动 skip。
  */
+
+// 注册 Schema.Types.Long（值类型为 mongoose.mongo.Long，与 bson.Long 同一副本）
+mongooseLong(mongoose);
 
 const mongooseRequestText = [
   "OrderRecord({",
@@ -75,18 +80,63 @@ maybeDescribe("mongoose integration", () => {
 
   const TasonAsset = mongoose.model("TasonAsset", MongooseAssetSchema);
 
+  const MONGOOSE_ORDER_LONG_COLLECTION = "tason_orders_mongoose_long";
+
+  // mongoose-long：Schema.Types.Long 的值即 bson.Long（同一副本）；
+  // 写入接受 Long / number / bigint / 十进制字符串（cast 经 fromString 精确转换）
+  const MongooseOrderLongSchema = new mongoose.Schema(
+    {
+      code: { type: String, required: true },
+      quantity: { type: mongoose.Schema.Types.Long, required: true },
+      amount: { type: mongoose.Schema.Types.Decimal128, required: true },
+      payload: { type: mongoose.Schema.Types.Mixed, required: true },
+      createdAt: { type: Date, required: true },
+    },
+    { collection: MONGOOSE_ORDER_LONG_COLLECTION },
+  );
+
+  const TasonOrderLong = mongoose.model(
+    "TasonOrderLong",
+    MongooseOrderLongSchema,
+  );
+
+  const MONGOOSE_ASSET_LONG_COLLECTION = "tason_assets_mongoose_long";
+
+  // Long 数组不再依赖 Mixed：元素级 cast + 查询条件 cast
+  const MongooseAssetLongSchema = new mongoose.Schema(
+    {
+      name: { type: String, required: true },
+      thumbnail: { type: mongoose.Schema.Types.Mixed, required: true },
+      spans: [mongoose.Schema.Types.Long],
+      counts: [mongoose.Schema.Types.Long],
+      amounts: [mongoose.Schema.Types.Decimal128],
+      payload: { type: mongoose.Schema.Types.Mixed, required: true },
+      createdAt: { type: Date, required: true },
+    },
+    { collection: MONGOOSE_ASSET_LONG_COLLECTION },
+  );
+
+  const TasonAssetLong = mongoose.model(
+    "TasonAssetLong",
+    MongooseAssetLongSchema,
+  );
+
   beforeAll(async () => {
     await mongoose.connect(mongoTestConfig.uri, {
       dbName: mongoTestConfig.dbName,
     });
     await TasonOrder.deleteMany({});
     await TasonAsset.deleteMany({});
+    await TasonOrderLong.deleteMany({});
+    await TasonAssetLong.deleteMany({});
   });
 
   afterAll(async () => {
     if (mongoose.connection.readyState !== 1) return;
     await TasonOrder.deleteMany({});
     await TasonAsset.deleteMany({});
+    await TasonOrderLong.deleteMany({});
+    await TasonAssetLong.deleteMany({});
     await mongoose.disconnect();
   });
 
@@ -109,7 +159,8 @@ maybeDescribe("mongoose integration", () => {
     expect(lean).not.toBeNull();
     expect(lean!._id).toBeInstanceOf(ObjectId);
     expect(lean!.amount).toBeInstanceOf(Decimal128);
-    // lean() 不走 cast 管线：mongoose 读取不提升（promoteValues: false），BSON long 保持 bson.Long
+    // lean() 不走 cast 管线，读回驱动原始值：该字段超安全范围，保持 bson.Long
+    // （安全 long 会提升为 number）
     expect(lean!.quantity).toBeInstanceOf(Long);
     expect((lean!.payload as OrderPayload).level).toBeInstanceOf(Long);
 
@@ -207,5 +258,85 @@ maybeDescribe("mongoose integration", () => {
     expect(
       Array.from((echoed.payload as AssetPayload).embedding!.toInt8Array()),
     ).toEqual([1, -2, 3]);
+  });
+
+  test("mongoose-long Long 字段：水合与 lean 一致为 bson.Long", async () => {
+    const s = createApiSerializer();
+    const order = s.parseAs(OrderRecord, mongooseRequestText);
+    expect(order.quantity).toBe(9007199254740993n);
+
+    // bigint 实体值直接写 Long SchemaType：cast 经 toString 精确转换（不丢精度）
+    // （自定义 SchemaType 的类型推断不可靠，取值统一走 String()）
+    const created = await TasonOrderLong.create({ ...order });
+    expect(created.quantity).toBeInstanceOf(Long);
+    expect(String(created.quantity)).toBe("9007199254740993");
+
+    // 水合文档与 toObject：cast 后是 bson.Long（BigInt SchemaType 的 bigint 不对称消除）
+    const doc = await TasonOrderLong.findOne({ code: "ORD-101" });
+    expect(doc!.quantity).toBeInstanceOf(Long);
+    const obj = doc!.toObject({ flattenMaps: true });
+    expect(obj.quantity).toBeInstanceOf(Long);
+
+    // lean() 不走 cast 管线，读回驱动原始值：该字段超安全范围，保持 bson.Long
+    // （安全 long 会被提升为 number；水合路径经 cast 才统一为 Long）
+    const lean = await TasonOrderLong.findOne({ code: "ORD-101" }).lean();
+    expect(lean!.quantity).toBeInstanceOf(Long);
+
+    // 查询条件 cast：字符串被转成 Long 再匹配（Mixed 字段做不到）
+    const hit = await TasonOrderLong.findOne({
+      quantity: "9007199254740993",
+    }).lean();
+    expect(hit).not.toBeNull();
+
+    // 仓储映射收敛 bigint 后按实体契约回环
+    const body = s.stringify(toOrderRecord(lean as Record<string, any>));
+    expect(body).toContain(`quantity:BigInt("9007199254740993"),`);
+    const echoed = s.parseAs(OrderRecord, body);
+    expect(echoed.quantity).toBe(9007199254740993n);
+  });
+
+  test("mongoose-long Long 数组：类型化路径全程 bson.Long", async () => {
+    const s = createApiSerializer();
+    const asset = s.parseAs(AssetRecord, assetRequestText);
+
+    // spans（Long 实例透传）与 counts（bigint 经 cast）都按 Long 存储
+    const created = await TasonAssetLong.create({ ...asset });
+    for (const span of created.spans) {
+      expect(span).toBeInstanceOf(Long);
+    }
+    for (const count of created.counts) {
+      expect(count).toBeInstanceOf(Long);
+    }
+    expect(created.counts.map((x) => String(x))).toEqual([
+      "2",
+      "9007199254740993",
+    ]);
+
+    const lean = await TasonAssetLong.findOne({ name: "ASSET-001" }).lean();
+    expect(lean).not.toBeNull();
+    // lean() 不走 cast，读回驱动原始值：安全 long 被提升为 number，
+    // 超安全 long 保持 bson.Long —— cast 只统一水合路径，仓储映射仍需归一化
+    expect(lean!.spans[0]).toBeInstanceOf(Long);
+    expect(lean!.counts[0]).toBe(2);
+    expect(lean!.counts[1]).toBeInstanceOf(Long);
+
+    // 数组元素级的查询条件 cast（字符串 → Long）
+    const hit = await TasonAssetLong.findOne({ spans: SPAN_A }).lean();
+    expect(hit).not.toBeNull();
+
+    // TASON 侧：stringify 装箱 Int64，echo 解析（instance 契约）仍是 Long，
+    // 不经转换即可写回同一模型
+    const body = s.stringify(toAssetRecord(lean as Record<string, any>));
+    expect(body).toContain(`spans:[Int64("${SPAN_A}"),Int64("${SPAN_B}")]`);
+    const echoed = s.parseAs(AssetRecord, body);
+    for (const span of echoed.spans) {
+      expect(span).toBeInstanceOf(Long);
+    }
+    const again = await TasonAssetLong.findOneAndUpdate(
+      { name: "ASSET-001" },
+      { $set: { spans: echoed.spans } },
+      { new: true },
+    ).lean();
+    expect(again!.spans.map((x: any) => x.toString())).toEqual([SPAN_A, SPAN_B]);
   });
 });

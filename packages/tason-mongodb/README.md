@@ -69,7 +69,9 @@ Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal
 
 `useBigInt64: true` 时驱动要求同时 `promoteValues` 与 `promoteLongs` 为 true，否则 `bson` 自己抛错。
 
-Mongoose 读取驱动层不提升（`promoteValues: false`，由 SchemaType cast 收值）：水合文档 / `toObject()` 的 `BigInt` SchemaType 是原生 `bigint`（核心 `BigInt` 路径）；`lean()` 绕过 cast 管线，BSON long 读回 `bson.Long`（写出 `Int64("…")`）。`Mixed`（动态类型）字段两种路径都原样保留 bson 实例。
+Mongoose 水合路径由 SchemaType cast 收值：`BigInt` SchemaType 是原生 `bigint`（核心 `BigInt` 路径）。`lean()` 绕过 cast 管线，读回驱动原始值（遵循上表默认提升规则：安全 long → `number`，超安全 long → `bson.Long`，`Decimal128` 不提升），写出对应的 `Int64("…")` / 裸字面量。`Mixed`（动态类型）字段两种路径都原样保留 bson 实例。
+
+配合 `mongoose-long`（`Schema.Types.Long`，值即 `mongoose.mongo.Long`，与本包同一份 `bson.Long`）：Long 字段与数组在写入 / 水合 / 查询条件上统一 cast 为 `bson.Long`——接受 `Long` / `number` / `bigint` / 十进制字符串（经 `fromString` 精确转换），水合文档与 TASON `Int64` 装箱直接对应，Long 数组不再依赖 `Mixed`，字符串查询条件也会被 cast 后匹配。但 `lean()` 仍不走 cast（mongoose 架构行为）：安全 long 依旧提升为 `number`，仓储层归一化仍需要。本包不为 mongoose-long 写专用适配——兼容其字段就是兼容 `bson.Long`。
 
 ### `parse`：`replaceDefault` × Handling
 

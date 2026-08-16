@@ -1927,6 +1927,11 @@ mongodb@~6.20.0:
     bson "^6.10.4"
     mongodb-connection-string-url "^3.0.2"
 
+mongoose-long@^0.8.0:
+  version "0.8.0"
+  resolved "https://registry.npmmirror.com/mongoose-long/-/mongoose-long-0.8.0.tgz#6783921e9f953c62d8d6f49601640d68996dec98"
+  integrity sha512-gNpLDs9HE5W5rKuZPFOzFB1Ei/SJbSSA6HlF/wR5qGU3N9K5SXfXlvWm+uUWpqZ13H3Zhna3Ww6ILGW4TjFP+g==
+
 mongoose@^8.9.0:
   version "8.24.3"
   resolved "https://registry.npmmirror.com/mongoose/-/mongoose-8.24.3.tgz#2e8a9f185d88269d857e6f4dfd55c8f0d2b5ecd1"
@@ -2326,22 +2331,6 @@ supports-preserve-symlinks-flag@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmmirror.com/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz"
   integrity sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==
-
-tason@*:
-  version "1.0.2"
-  resolved "https://registry.npmmirror.com/tason/-/tason-1.0.2.tgz#8c9a73316a9aa095bba34d563d9225962189c2c7"
-  integrity sha512-jCRIYhSpvXrbNxIfThCQWhUKKEekaiUuR6pKn0K9LrjZz7BESvlMP4VDJQNygzlKYX1bCFkVHX2ah24p7lcBlA==
-  dependencies:
-    "@date-fns/utc" "^2.1.0"
-    antlr4 "^4.13.2"
-    base64-arraybuffer "^1.0.2"
-    date-fns "^4.1.0"
-    decimal.js "^10.5.0"
-    js-string-escape "^1.0.1"
-    reflect-metadata "^0.2.2"
-    type-detect "^4.1.0"
-    unescape-js "^1.1.4"
-    uuid "^11.1.0"
 
 test-exclude@^6.0.0:
   version "6.0.0"
