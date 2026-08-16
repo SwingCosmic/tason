@@ -1,6 +1,7 @@
 # TASON
 
 ![npm](https://img.shields.io/npm/v/tason?color=green)
+![npm](https://img.shields.io/npm/v/tason-mongodb?color=green)
 
 TASON (Type-Augmented Serialization Object Notation，发音`/ˈtæsən/`) 是一种类型化的对象表示语法，可以用于序列化和反序列化数据。
 
