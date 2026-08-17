@@ -245,6 +245,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | --- | --- | --- |
 | **`bson` / `mongodb` 驱动** | 权威实现；`ObjectId`、`Long`、`Decimal128`、`Binary`、`Double`、`Timestamp`、`UUID`… 均从此包（或 `mongodb` 再导出） | 读写文档时即为这些类的实例 |
 | **`mongoose-long`** | **不**另造 Long：`Types.Long = mongoose.mongo.Long`；自定义 `Schema.Types.Long` 只做 **cast**（`fromNumber` / `fromString` / `instanceof mongo.Long`） | 路径上是 **`bson.Long`（即 driver Long）** |
+| **`mongoose-int32` / 内置 `Schema.Types.Int32`** | cast 目标是 **`number`**（范围检查 + 落盘 BSON int）；**不是** `bson.Int32`。旧插件 `loadType` 会覆盖内置，mongoose 8 直接用内置即可 | 非 lean / `toObject()` / 默认 `lean()` **都是 number**（`promoteValues` 提升全部 int，无 Long 那种分叉） |
 | **Mongoose 内置** | `Types.Decimal128` **直接 re-export** `mongodb` 的 BSON Decimal128；`Types.ObjectId` 同族；`Schema.Types.*` 是配置，**不是**值类型 | ObjectId / Decimal128 等为 BSON 实例 |
 | **Mongoose `BigInt` SchemaType** | 存库为 BSON long，**内存为原生 `bigint`** | **不是** `Long` 实例 → 走核心 `bigint` / Int64 路径，不是 Mongo Long 的追加类型实现 |
 | **Mongoose `Int32` / `Double`** | Int32 常为 **number**；Double 常为 **`bson.Double` 包装** | 与「裸 number」不完全同一 |
@@ -259,7 +260,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | `stringify` 查询结果 / `lean()` 文档中的 `ObjectId`、`Long`、`Decimal128` | **能** | 注册对应 TypeInfo，且 **`instanceof` 命中**（同一 bson 副本） |
 | `parse` 出上述类型再 `insertOne` / 赋给 mongoose 路径 | **能** | `replaceDefaultImplementation` 将默认设为 BSON 类，或业务侧接受 cast；`mongoose-long` 的 `cast` 也认 `instanceof mongo.Long` |
 | 未 `registerMongoDBTypes` 就 parse `ObjectId("…")` | **不能** | 核心无 ObjectId |
-| 直接 `stringify(mongooseDocument)` 整棵 Document | **部分** | Document 有原型/内部状态；**推荐 `doc.toObject()` / `lean()`** 后再 stringify |
+| 直接 `stringify(mongooseDocument)` 整棵 Document | **部分** | Document 有原型/内部状态；**推荐 `doc.toObject({ flattenMaps: true })`** 后再 stringify。`lean()` 不是更便宜的 `toObject()`（跳过 Schema cast，安全 long 会被驱动提升为 `number`），见包 README「与 Mongoose 一起用」 |
 | Schema 声明为 `BigInt` 的字段 | **靠核心** | 值是 `bigint`，用核心 number handling / Int64，不必 Mongo Long 的追加类型实现 |
 | 双份 `bson`（nested node_modules） | **易失效** | `instanceof` 失败 → stringify 无法识别、parse 得到的类驱动也无法识别。**强制 peer `bson`，文档要求与 `mongodb`/`mongoose` 使用同一份 `bson`** |
 | 插件自定义 SchemaType 但值仍是 bson 类 | **能** | 与 mongoose-long 同模式 |
@@ -270,7 +271,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 1. TypeInfo 的 `ctor` **优先使用 `bson` 包导出**（`ObjectId`、`Long`、`Decimal128`…），不要自建平行类。  
 2. `peerDependencies`：`bson`（及文档说明：与项目中 `mongodb` / `mongoose` 解析到的 bson 一致）。可选说明也可 `import { Long } from "mongodb"`，但 monorepo 实现侧统一从 `bson` import，避免分叉。  
 3. **不为 mongoose-long 写专用适配**；兼容其文档字段就是兼容 `bson.Long`。  
-4. README 写清：对 Mongoose 先 `toObject({ flattenMaps: true })` 等再交给 TASON；BigInt Schema 不是 Long 的追加类型实现。  
+4. README 写清：对 Mongoose 先 `toObject({ flattenMaps: true })` 再交给 TASON（`lean()` 须单独提示：不走 Schema cast）；BigInt Schema 不是 Long 的追加类型实现。  
 5. 双份 `bson` 的危害写进风险表与测试：可用集成测试验证「从 mongoose 取出的 ObjectId 能被 registry 识别」。
 
 ### 4.1 类型清单与适配（细则见分册）
@@ -304,7 +305,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 | 已落地 |
 | **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。行为矩阵见包 README（单一出处）；覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
 | 注册入口 | `register.test.ts` | catalog 命名 / `Buffer` 追加实现不动默认 / 未知 `include` 抛错 | 已落地 |
-| **C 集成** | `integration.mongodb.test.ts`（原生驱动）/ `integration.mongoose.test.ts`（mongoose）；共享夹具 `integration.shared.ts`（实体 / schema / 序列化器装配 / 请求文本），连接加载 `env.ts` | 真实 `mongodb` 连接 + mongoose：驱动 / `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary 子类型（MD5 / Encrypted / Sensitive / Vector）与数值装箱数组（`Int64[]` / `Decimal128[]` / `bigint[]`）读写；schema 实体（动态类型字段）+ `replaceDefaultImplementation: true` + number handling 默认，模拟 API 请求 / 响应的 TASON 序列化；含 mongoose-long（`Schema.Types.Long`）类型化 Long 字段 / 数组路径（不做专用适配，兼容即 `bson.Long`）。连接信息 `.env`（占位）→ `.env.local` / 环境变量，未配置自动 skip | 已完成 |
+| **C 集成** | `integration.mongodb.test.ts`（原生驱动）/ `integration.mongoose.test.ts`（mongoose）；共享夹具 `integration.shared.ts`（实体 / schema / 序列化器装配 / 请求文本），连接加载 `env.ts` | 真实 `mongodb` 连接 + mongoose：驱动 / `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary 子类型（MD5 / Encrypted / Sensitive / Vector）与数值装箱数组（`Int64[]` / `Decimal128[]` / `bigint[]`）读写；schema 实体（动态类型字段）+ `replaceDefaultImplementation: true` + number handling 默认，模拟 API 请求 / 响应的 TASON 序列化；含 mongoose-long（`Schema.Types.Long`）类型化 Long 字段 / 数组路径（不做专用适配，兼容即 `bson.Long`）；含 mongoose 内置 `Schema.Types.Int32`（与旧插件 mongoose-int32 同模式：cast → number，lean / toObject 无 Long 那种分叉）。连接信息 `.env`（占位）→ `.env.local` / 环境变量，未配置自动 skip | 已完成 |
 
 依赖：workspace `tason`；`bson` 为 devDependency；集成层已加 `mongodb` / `mongoose` devDependency（bson 6 对齐，保证单一副本）。
 
@@ -482,7 +483,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 发布配错 `files` / 主入口 | 每包独立 `files: ["lib"]` + 本地 pack 检查 |
 | Yarn Classic workspaces 与 peer | 用 devDependency 链到 workspace 协议 `tason@*` 联调 |
 | 双份 `bson` 导致 `instanceof` 失败 | peer + 文档要求使用同一份 `bson`；测试 M8；勿在包内 bundle bson |
-| 用户 stringify 整个 Mongoose Document | 文档要求 `toObject` / `lean`；不要承诺可以把 Document 当 plain object |
+| 用户 stringify 整个 Mongoose Document | 文档要求 `toObject({ flattenMaps: true })`；不要承诺可以把 Document 当 plain object。`lean()` 跳过 cast，须单独提示 |
 | Schema `BigInt` vs `Long` 混淆 | 文档对照表：bigint 走核心，Long 走 Mongo 包 |
 
 ---

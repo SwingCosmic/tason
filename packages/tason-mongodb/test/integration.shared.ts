@@ -1,6 +1,6 @@
 import { describe, jest } from "@jest/globals";
 import * as v from "valibot";
-import { Binary, Decimal128, Long, ObjectId, UUID } from "bson";
+import { Binary, Decimal128, Int32, Long, ObjectId, UUID } from "bson";
 import TASON, { createValibotAdapter } from "tason";
 import { registerMongoDBTypes } from "../src";
 import { getMongoTestConfig } from "./env";
@@ -33,6 +33,7 @@ export const UNSAFE_INT64_MONGOOSE = "6571037680684232706";
 export const SPAN_A = "6571037680684232711";
 export const SPAN_B = "6571037680684232712";
 export const OID_ASSET = "6670f391dcb0bd791cb3bd21";
+export const OID_SCORE = "6670f391dcb0bd791cb3bd22";
 export const MD5_CHECKSUM = "00112233445566778899aabbccddeeff";
 export const MD5_CHUNK = "ffeeddccbbaa99887766554433221100";
 
@@ -43,6 +44,11 @@ export interface OrderPayload {
   level?: Long;
   note?: string;
   tags?: string[];
+}
+
+/** 动态类型字段（payload）里的 Int32：parse 后是 bson.Int32，驱动提升后是 number */
+export interface ScorePayload {
+  hint?: Int32 | number;
 }
 
 /** 动态类型字段（payload）实际携带的 Binary 家族形状 */
@@ -100,6 +106,33 @@ export class AssetRecord {
   }
 }
 
+/**
+ * Int32 实体：契约是 number。
+ * mongoose `Schema.Types.Int32` / 旧插件 mongoose-int32 的 cast 目标都是 number
+ *（保证落盘 BSON int），内存不是 bson.Int32。
+ */
+export class ScoreRecord {
+  _id?: ObjectId;
+  code!: string;
+  score!: number;
+  ranks!: number[];
+  payload!: unknown;
+  createdAt!: Date;
+
+  constructor(init?: Partial<ScoreRecord>) {
+    if (init) Object.assign(this, init);
+  }
+}
+
+const ScoreRecordSchema = v.object({
+  _id: v.optional(v.instance(ObjectId)),
+  code: v.string(),
+  score: v.number(),
+  ranks: v.array(v.number()),
+  payload: v.any(),
+  createdAt: v.date(),
+});
+
 const AssetRecordSchema = v.object({
   _id: v.optional(v.instance(ObjectId)),
   name: v.string(),
@@ -133,6 +166,11 @@ export function createApiSerializer() {
     { kind: "object", ctor: AssetRecord },
     { schema: AssetRecordSchema },
   );
+  s.registry.registerType(
+    "ScoreRecord",
+    { kind: "object", ctor: ScoreRecord },
+    { schema: ScoreRecordSchema },
+  );
   return s;
 }
 
@@ -141,6 +179,17 @@ export function toOrderRecord(raw: Record<string, any>): OrderRecord {
   const rest: Record<string, any> = { ...raw };
   delete rest.__v;
   return new OrderRecord({ ...rest, quantity: BigInt(raw.quantity) });
+}
+
+/** 仓储层映射：Int32 Schema 两条路径都是 number，仍剥 __v */
+export function toScoreRecord(raw: Record<string, any>): ScoreRecord {
+  const rest: Record<string, any> = { ...raw };
+  delete rest.__v;
+  return new ScoreRecord({
+    ...rest,
+    score: Number(raw.score),
+    ranks: (raw.ranks as unknown[]).map((x) => Number(x)),
+  });
 }
 
 /** 仓储层映射：counts 经驱动提升后 number / Long 混杂，应用层统一收敛为 bigint */
@@ -175,5 +224,18 @@ export const assetRequestText = [
   `chunks:[Buffer("hex,deadbeef"),MD5("${MD5_CHUNK}")]`,
   "},",
   'createdAt:Date("2026-08-16T10:00:00.000Z")',
+  "})",
+].join("");
+
+// typed 字段用字面量：number 契约不收 bson.Int32（Handling 只认核心包装）。
+// 装箱 Int32 放在动态 payload，并在 mongoose 测试里单独 parse 后写入 Schema.Types.Int32。
+export const scoreRequestText = [
+  "ScoreRecord({",
+  `_id:ObjectId("${OID_SCORE}"),`,
+  'code:"SCR-001",',
+  "score:42,",
+  "ranks:[1,-3],",
+  'payload:{hint:Int32("7")},',
+  'createdAt:Date("2026-08-16T12:00:00.000Z")',
   "})",
 ].join("");

@@ -69,9 +69,11 @@ Handling **只认核心数值包装**（`Int64` / `Int32` / `Float64` / `Decimal
 
 `useBigInt64: true` 时驱动要求同时 `promoteValues` 与 `promoteLongs` 为 true，否则 `bson` 自己抛错。
 
-Mongoose 水合路径由 SchemaType cast 收值：`BigInt` SchemaType 是原生 `bigint`（核心 `BigInt` 路径）。`lean()` 绕过 cast 管线，读回驱动原始值（遵循上表默认提升规则：安全 long → `number`，超安全 long → `bson.Long`，`Decimal128` 不提升），写出对应的 `Int64("…")` / 裸字面量。`Mixed`（动态类型）字段两种路径都原样保留 bson 实例。
+Mongoose 的 `lean()` 与 `toObject()` **不是**同一条读路径，同一库值可以变成不同 JS 类型、写出不同 TASON 文本。见下方 [与 Mongoose 一起用](#与-mongoose-一起用)。
 
-配合 `mongoose-long`（`Schema.Types.Long`，值即 `mongoose.mongo.Long`，与本包同一份 `bson.Long`）：Long 字段与数组在写入 / 水合 / 查询条件上统一 cast 为 `bson.Long`——接受 `Long` / `number` / `bigint` / 十进制字符串（经 `fromString` 精确转换），水合文档与 TASON `Int64` 装箱直接对应，Long 数组不再依赖 `Mixed`，字符串查询条件也会被 cast 后匹配。但 `lean()` 仍不走 cast（mongoose 架构行为）：安全 long 依旧提升为 `number`，仓储层归一化仍需要。本包不为 mongoose-long 写专用适配——兼容其字段就是兼容 `bson.Long`。
+配合 `mongoose-long`（`Schema.Types.Long`，值即 `mongoose.mongo.Long`，与本包同一份 `bson.Long`）：写入 / 非 lean 读回 / 查询条件统一 cast 为 `bson.Long`（接受 `Long` / `number` / `bigint` / 十进制字符串，经 `fromString` 精确转换），非 lean 的 Document 与 TASON `Int64` 装箱直接对应，Long 数组不必再走 `Mixed`。本包不为 mongoose-long 写专用适配——兼容其字段就是兼容 `bson.Long`。`lean()` 仍不走这层 cast，见下节。
+
+`Schema.Types.Int32`（mongoose 8 内置，与旧插件 `mongoose-int32` 同一模式）**不**对称：cast 目标是 `number`（保证落盘 BSON int），内存不是 `bson.Int32`。默认 `promoteValues` 下 `lean()` 与 `toObject()` 都是 `number`，没有 Long 那种安全/超安全分叉。
 
 ### `parse`：`replaceDefault` × Handling
 
@@ -136,6 +138,55 @@ Mongoose 水合路径由 SchemaType cast 收值：`BigInt` SchemaType 是原生 
 | `MongoTypes` | TypeInfo 表；也可测试覆盖 |
 | `MongoTypeCatalog` | TypeName / 新类型 vs 追加 / 可否替换默认 |
 | `RegisterMongoDBTypesOptions` | 选项类型 |
+
+## 与 Mongoose 一起用
+
+不要把 `lean()` 当成更便宜的 `toObject()`。两者只共享第一步（原生驱动 `bson.deserialize`），之后完全分叉。
+
+**交给 `stringify` 的默认路径：先拿到 Document，再 `doc.toObject({ flattenMaps: true })`。** 不要直接 `stringify` 整个 Mongoose Document。
+
+### 两条路径差在哪
+
+查询执行后，驱动先按上表默认提升（`promoteLongs: true`、`useBigInt64: false`）把 BSON 解成 JS 值，然后：
+
+| | `lean()` | 非 lean + `toObject()` |
+| --- | --- | --- |
+| Mongoose 做什么 | **跳过 hydrate**。`_completeManyLean` 最多剥 `versionKey`、跑可选的 `lean.transform` | `$init` 对每个 Schema 路径调用 `schemaType.cast()`，再 `clone(_doc)` 成 POJO |
+| SchemaType / getter / virtual | **不跑**（官方 [lean 教程](https://mongoosejs.com/docs/tutorials/lean.html) 写明：无 Casting） | 数值形态由 Schema 决定 |
+| 结果 | 驱动原始 POJO | 已 cast 过的 POJO（`flattenMaps` 等选项另算） |
+
+### 同一库值，读出来不是同一种 JS 类型
+
+| SchemaType | 非 lean / `toObject()` | `lean()`（驱动默认） |
+| --- | --- | --- |
+| `BigInt` | 原生 `bigint`（`Long.toBigInt()`） | 安全整数 → `number`；超出安全范围 → `bson.Long` |
+| `mongoose-long` 的 `Long` | 一律 `bson.Long`（cast 会把已提升的 `number` 再装回 Long） | 同上：安全 → `number`，超安全 → `Long` |
+| `Int32`（内置 / `mongoose-int32`） | `number`（cast 目标就是 number） | `number`（`promoteValues` 提升全部 int，无安全/超安全分叉） |
+| `Mixed` | 与 lean 相同（无 cast） | 驱动提升规则原样生效（其中的 BSON int 同样变成 `number`） |
+| `Decimal128` / `ObjectId` / `Binary` | bson 实例 | bson 实例（`promoteBuffers` 默认关，subtype 保留） |
+
+同一 `Long[]` 在 `lean()` 里可以 **`number` 与 `Long` 混杂**（例如 `counts: [2, Long("9007199254740993")]`）。这不是本包的 bug，是 mongoose 故意不在 lean 路径上跑 cast；[lean 教程 · BigInts](https://mongoosejs.com/docs/tutorials/lean.html#bigints) 也单独写了默认会把 long 读成 `number`。
+
+### 对 `stringify` 的影响
+
+TASON 只认手里的运行时值，不看 Mongoose Schema：
+
+| 手里的值 | 默认 `unsafe-only` |
+| --- | --- |
+| `number` / 安全 `bigint` | 裸字面量 `2` |
+| 超出安全范围的 `bigint` | `BigInt("…")` |
+| `bson.Long`（**含**安全整数） | `Int64("…")` |
+| `bson.Int32` | `Int32("…")` |
+
+因此同一字段、同一库值，`lean()` 与 `toObject()` 可以写出不同文本。
+
+### 若必须用 `lean()`
+
+在交给 TASON 之前先把数值收敛到契约类型，任选：
+
+1. **仓储层归一化**（推荐与实体契约对齐）：`BigInt(x)` / `Long.fromNumber` 等，集成测试里的 `toOrderRecord` / `toAssetRecord` 就是这种收口。
+2. **`Model.castObject(leanDoc)`**：事后补 Schema cast，仍是 POJO，不是完整 Document。
+3. **`query.setOptions({ useBigInt64: true }).lean()`**：所有 BSON long 变成 `bigint`（含 mongoose-long 字段，不再是 `Long`）。安全值也不再是 `number`。
 
 ## 范围边界
 

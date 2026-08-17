@@ -93,7 +93,7 @@ API 形状与行为矩阵见 [runtime-type/phase-3-duck-types.md](./runtime-type
 
 ---
 
-## 其它衍生/外部说法
+## 其它衍生说法
 
 | 说法 | 含义 |
 | --- | --- |
@@ -105,11 +105,18 @@ API 形状与行为矩阵见 [runtime-type/phase-3-duck-types.md](./runtime-type
 | **数值 TypeName** | Handling 的生效范围：按内置数值类型名名单（`NUMBER_TYPE_NAMES`）判定，与该名下挂的是哪种实现无关 |
 | **命中 / 扫描顺序** | stringify 兜底扫描按「TypeName 插入序 × 名内 `types[]` 顺序」取第一个 `instanceof` ∧ `match` 成功项；命中结果与谁是默认实现无关 |
 | **`_t`** | 文档映射层给 ObjectType 节点写的类型标记（默认键名）；不是 TASON 文本语法。见 [polymorphic-persistence](./polymorphic-persistence/) |
-| **BSON 类型码** | 协议里的封闭集合（`objectId` = 7、`long` = 18…）。不能在库或 TASON 里发明新码。清单与适配见 [phase-c-bson-types](./monorepo/phase-c-bson-types.md) |
-| **`binData` 用户子类型** | BSON中Binary类型的子类型 128–255：协议允许的自定义载荷槽，底层仍是类型码 5。TASON 默认当 `Buffer`；要独立 TypeName 用 TypeInfo.`match` |
 | **TypeInfo.`match`** | 在 `instanceof ctor` 之后再认领实例。同一 JS 类对应多个 TypeName 时用（`Binary.sub_type`、`Long` vs `Timestamp`） |
 | **`replaceDefaultImplementation`** | `tason-mongodb` 注册选项：在追加实现的同时把 bson 类替换为对应 TypeName 的默认实现（内部走 `asDefault`） |
 | **`unwrapNumber`（未实施）** | 数值 TypeName 实现的统一拆箱契约，内置与第三方实现同轨；设计见 [phase-4-number-protocol](./runtime-type/phase-4-number-protocol.md) |
-| **wire type** | 二进制协议（Protobuf 等）里标记「这段数据按什么类型解释」的标签，是 TypeName 的对应物；TASON 是文本协议，正文不用此说法 |
+
+## 外部表述
+
+| 说法 | 含义 |
+| --- | --- |
+| **smoke test** | 冒烟测试，检查基本功能运行正常的小型单元测试。**禁止省略「测试」一词，留下单个动词「冒烟」** |
+| **wire type** | 二进制协议（Protobuf 等）里标记「这段数据按什么类型解释」的标签，是 TypeName 的对应物；TASON 是文本协议，正文不用此说法，更不能机翻为**线类型** |
+| **BSON 类型码** | 协议里的封闭集合（`objectId` = 7、`long` = 18…）。不能在库或 TASON 里发明新码。清单与适配见 [phase-c-bson-types](./monorepo/phase-c-bson-types.md) |
+| **`binData` 用户子类型** | BSON中Binary类型的子类型 128–255：协议允许的自定义载荷槽，底层仍是类型码 5。TASON 默认当 `Buffer`；要独立 TypeName 用 TypeInfo.`match` |
+| **hydrate** | mongoose *hydrate*（查询结果收成 Document 并跑 Schema `cast`，相对 `lean()`）。**禁止机械翻译为「水合」**，保持 **`hydrate`** 或「Schema转换的Document」 |
 | **EJSON** | MongoDB 的 JSON 扩展表示，用 `$` 前缀对象包装非 JSON 类型；`BSONTimestamp` 的 `{t, i}` 与其 `$timestamp` 同构 |
 | **驱动提升 `promote*`** | `bson.deserialize` 读选项（`promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`），决定驱动读出的是原生值还是 bson 包装类 |

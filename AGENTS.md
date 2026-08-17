@@ -82,9 +82,10 @@ tason/                          # 仓库根（private monorepo）
 ## 5. 用语与标识符命名
 
 - 文档叙述写完整说法（**序列化 / 反序列化**，不写 ser/de）；术语以 [glossary](./docs/features/glossary.md) 为准。
-- 中文文档为主；标识符 / 选项 / TypeName 保持英文原样。专业术语不必强行翻译，避免机械翻译（如单独写「冒烟」「水合」）。
+- 中文文档为主；标识符 / 选项 / TypeName 保持英文原样。专业术语不必强行翻译。
+- **禁止机械翻译**（文档、测试标题、行内注释一体适用）。glossary「其它衍生/外部说法」里标了**不得使用**的词（如「水合」，「冒烟」）。新出现的外部译名先入 glossary 再决定能否用。
 - 选项字符串 **kebab-case**；与 .NET 对齐的选项名（如序列化侧 `object-type-property`）以文档/代码为准，勿为「JS 对称」擅自重命名；序列化与反序列化选项命名不对称是**故意的**。
-- 代码标识符**禁止** `duck` / `DuckType` 等；对应 API 用 `asDefault` / `setDefaultType` / `setDefaultTypeByCtor` / `parseAs` / `getTypeInfoByCtor` / `replaceDefaultImplementation`。
+- 代码标识符**禁止** `duck` / `DuckType` 等鸭子类型相关，文档不限；对应 API 用 `asDefault` / `setDefaultType` / `setDefaultTypeByCtor` / `parseAs` / `getTypeInfoByCtor` / `replaceDefaultImplementation`。
 - **与 C# 对齐**：语义对齐、手段按语言替换（CLR 反射 → schema + adapter）。改 Handling / OT 上下文相关行为前，先在 `E:\dev\VS2022\tason-net`（核心多在 `TASON/`）搜对应概念再改 JS。
 
 ---
@@ -129,3 +130,4 @@ tason/                          # 仓库根（private monorepo）
 - [ ] 测试落在正确文件、标题干净  
 - [ ] 相关 jest 绿；导出变更时 `yarn build`（或对应 workspace）  
 - [ ] 进度 / 文档已按需更新  
+- [ ] 用语已对照 glossary：文档 / 测试标题 / 注释未使用「水合」等标为不得使用的机械翻译  

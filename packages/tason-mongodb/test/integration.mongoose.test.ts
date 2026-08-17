@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "@jest/globals";
-import { Binary, Decimal128, Long, ObjectId } from "bson";
+import { Binary, Decimal128, Int32, Long, ObjectId } from "bson";
 import mongoose from "mongoose";
 import mongooseLong from "mongoose-long";
 import {
   MD5_CHECKSUM,
   OID_ASSET,
   OID_MONGOOSE,
+  OID_SCORE,
   SPAN_A,
   SPAN_B,
   UNSAFE_INT64_MONGOOSE,
@@ -13,18 +14,23 @@ import {
   AssetRecord,
   type OrderPayload,
   OrderRecord,
+  type ScorePayload,
+  ScoreRecord,
   assetRequestText,
   createApiSerializer,
   maybeDescribe,
   mongoTestConfig,
+  scoreRequestText,
   toAssetRecord,
   toOrderRecord,
+  toScoreRecord,
 } from "./integration.shared";
 
 /**
  * C 集成（mongoose）：请求文本 parseAs 实体后 Model.create；
  * lean() / toObject() 结果映射实体后 stringify 为 API 响应文本并回环。
- * 另含 mongoose-long（Schema.Types.Long）路径：字段与数组的值即 bson.Long。
+ * 另含 mongoose-long（Schema.Types.Long，值即 bson.Long）与
+ * mongoose 内置 Int32（与旧插件 mongoose-int32 同模式：cast 目标是 number）。
  * 连接信息与共享夹具见 integration.shared.ts / env.ts，未配置自动 skip。
  */
 
@@ -49,7 +55,7 @@ maybeDescribe("mongoose integration", () => {
   const MongooseOrderSchema = new mongoose.Schema(
     {
       code: { type: String, required: true },
-      // BigInt SchemaType：水合文档内存为原生 bigint（走核心 BigInt 路径）；
+      // BigInt SchemaType：非 lean 的 Document 内存为原生 bigint（走核心 BigInt 路径）；
       // lean() 绕过 cast 管线，读到的是原始 bson.Long
       quantity: { type: mongoose.Schema.Types.BigInt, required: true },
       amount: { type: mongoose.Schema.Types.Decimal128, required: true },
@@ -121,6 +127,24 @@ maybeDescribe("mongoose integration", () => {
     MongooseAssetLongSchema,
   );
 
+  const MONGOOSE_SCORE_COLLECTION = "tason_scores_mongoose";
+
+  // mongoose 8 内置 Schema.Types.Int32 ≡ 旧插件 mongoose-int32：
+  // cast 返回 number（Math.round + 范围检查），靠 bson 序列化器把整数写成 BSON int；
+  // 内存不是 bson.Int32。与 mongoose-long「cast 成包装类」不对称。
+  const MongooseScoreSchema = new mongoose.Schema(
+    {
+      code: { type: String, required: true },
+      score: { type: mongoose.Schema.Types.Int32, required: true },
+      ranks: [mongoose.Schema.Types.Int32],
+      payload: { type: mongoose.Schema.Types.Mixed, required: true },
+      createdAt: { type: Date, required: true },
+    },
+    { collection: MONGOOSE_SCORE_COLLECTION },
+  );
+
+  const TasonScore = mongoose.model("TasonScore", MongooseScoreSchema);
+
   beforeAll(async () => {
     await mongoose.connect(mongoTestConfig.uri, {
       dbName: mongoTestConfig.dbName,
@@ -129,6 +153,7 @@ maybeDescribe("mongoose integration", () => {
     await TasonAsset.deleteMany({});
     await TasonOrderLong.deleteMany({});
     await TasonAssetLong.deleteMany({});
+    await TasonScore.deleteMany({});
   });
 
   afterAll(async () => {
@@ -137,6 +162,7 @@ maybeDescribe("mongoose integration", () => {
     await TasonAsset.deleteMany({});
     await TasonOrderLong.deleteMany({});
     await TasonAssetLong.deleteMany({});
+    await TasonScore.deleteMany({});
     await mongoose.disconnect();
   });
 
@@ -178,7 +204,7 @@ maybeDescribe("mongoose integration", () => {
       UNSAFE_INT64_MONGOOSE,
     );
 
-    // 非 lean 路径：水合文档经 cast 管线（Long → bigint），再按 README 推荐 toObject 交给 TASON
+    // 非 lean 路径：Document 经 cast 管线（Long → bigint），再按 README 推荐 toObject 交给 TASON
     const doc = await TasonOrder.findOne({ code: "ORD-101" });
     expect(doc!.quantity).toBe(9007199254740993n);
     const obj = doc!.toObject({ flattenMaps: true });
@@ -227,7 +253,8 @@ maybeDescribe("mongoose integration", () => {
 
     const lean = await TasonAsset.findOne({ name: "ASSET-001" }).lean();
     expect(lean).not.toBeNull();
-    // lean() 不走 cast / 不提升：Binary 子类型与装箱 long 数组原样读回
+    // lean() 不走 Schema cast：Binary 子类型原样；装箱 long 仍受驱动 promoteLongs
+    //（安全 long → number，超安全 → Long），仓储映射再收敛
     expect(lean!.thumbnail).toBeInstanceOf(Binary);
     expect(lean!.thumbnail.sub_type).toBe(Binary.SUBTYPE_DEFAULT);
     expect(lean!.spans).toHaveLength(2);
@@ -260,7 +287,7 @@ maybeDescribe("mongoose integration", () => {
     ).toEqual([1, -2, 3]);
   });
 
-  test("mongoose-long Long 字段：水合与 lean 一致为 bson.Long", async () => {
+  test("mongoose-long Long 字段：非 lean 与 lean 一致为 bson.Long", async () => {
     const s = createApiSerializer();
     const order = s.parseAs(OrderRecord, mongooseRequestText);
     expect(order.quantity).toBe(9007199254740993n);
@@ -271,14 +298,14 @@ maybeDescribe("mongoose integration", () => {
     expect(created.quantity).toBeInstanceOf(Long);
     expect(String(created.quantity)).toBe("9007199254740993");
 
-    // 水合文档与 toObject：cast 后是 bson.Long（BigInt SchemaType 的 bigint 不对称消除）
+    // 非 lean 的 Document 与 toObject：cast 后是 bson.Long（BigInt SchemaType 的 bigint 不对称消除）
     const doc = await TasonOrderLong.findOne({ code: "ORD-101" });
     expect(doc!.quantity).toBeInstanceOf(Long);
     const obj = doc!.toObject({ flattenMaps: true });
     expect(obj.quantity).toBeInstanceOf(Long);
 
     // lean() 不走 cast 管线，读回驱动原始值：该字段超安全范围，保持 bson.Long
-    // （安全 long 会被提升为 number；水合路径经 cast 才统一为 Long）
+    // （安全 long 会被提升为 number；非 lean 路径经 cast 才统一为 Long）
     const lean = await TasonOrderLong.findOne({ code: "ORD-101" }).lean();
     expect(lean!.quantity).toBeInstanceOf(Long);
 
@@ -315,7 +342,7 @@ maybeDescribe("mongoose integration", () => {
     const lean = await TasonAssetLong.findOne({ name: "ASSET-001" }).lean();
     expect(lean).not.toBeNull();
     // lean() 不走 cast，读回驱动原始值：安全 long 被提升为 number，
-    // 超安全 long 保持 bson.Long —— cast 只统一水合路径，仓储映射仍需归一化
+    // 超安全 long 保持 bson.Long —— cast 只统一非 lean 路径，仓储映射仍需归一化
     expect(lean!.spans[0]).toBeInstanceOf(Long);
     expect(lean!.counts[0]).toBe(2);
     expect(lean!.counts[1]).toBeInstanceOf(Long);
@@ -338,5 +365,76 @@ maybeDescribe("mongoose integration", () => {
       { new: true },
     ).lean();
     expect(again!.spans.map((x: any) => x.toString())).toEqual([SPAN_A, SPAN_B]);
+  });
+
+  test("mongoose Int32 字段：非 lean 与 lean 均为 number", async () => {
+    const s = createApiSerializer();
+    const score = s.parseAs(ScoreRecord, scoreRequestText);
+    expect(score.score).toBe(42);
+    // 动态字段：replaceDefault 后保留 bson.Int32
+    expect((score.payload as ScorePayload).hint).toBeInstanceOf(Int32);
+
+    // bson.Int32 可直接写 Int32 SchemaType：cast 经 Number / valueOf 收成 number
+    const boxed = s.parse<Int32>(`Int32("42")`);
+    expect(boxed).toBeInstanceOf(Int32);
+    const created = await TasonScore.create({
+      ...score,
+      score: boxed,
+      ranks: [s.parse<Int32>(`Int32("1")`), s.parse<Int32>(`Int32("-3")`)],
+    });
+    expect(created._id?.toHexString()).toBe(OID_SCORE);
+    expect(created.score).toBe(42);
+    expect(typeof created.score).toBe("number");
+
+    const doc = await TasonScore.findOne({ code: "SCR-001" });
+    expect(doc!.score).toBe(42);
+    const obj = doc!.toObject({ flattenMaps: true });
+    expect(obj.score).toBe(42);
+    expect(typeof obj.score).toBe("number");
+
+    // lean() 同样是 number：BSON int 被 promoteValues 全部提升，没有 Long 那种安全/超安全分叉
+    const lean = await TasonScore.findOne({ code: "SCR-001" }).lean();
+    expect(lean!.score).toBe(42);
+    expect(typeof lean!.score).toBe("number");
+    // Mixed 里的 Int32 落盘后读回也被提升，不再是 bson.Int32
+    expect((lean!.payload as ScorePayload).hint).toBe(7);
+
+    const body = s.stringify(toScoreRecord(lean as Record<string, any>));
+    expect(body).toContain(`_id:ObjectId("${OID_SCORE}")`);
+    expect(body).toContain("score:42,");
+    expect(body).not.toContain(`score:Int32("42")`);
+    expect(body).toContain("hint:7");
+
+    const echoed = s.parseAs(ScoreRecord, body);
+    expect(echoed.score).toBe(42);
+    expect((echoed.payload as ScorePayload).hint).toBe(7);
+  });
+
+  test("mongoose Int32 数组：类型化路径全程 number", async () => {
+    const s = createApiSerializer();
+    const created = await TasonScore.findOne({ code: "SCR-001" });
+    expect(created).not.toBeNull();
+    expect(created!.ranks).toEqual([1, -3]);
+    for (const rank of created!.ranks) {
+      expect(typeof rank).toBe("number");
+    }
+
+    const obj = created!.toObject({ flattenMaps: true });
+    expect(obj.ranks).toEqual([1, -3]);
+
+    const lean = await TasonScore.findOne({ code: "SCR-001" }).lean();
+    // 与 mongoose-long 的 counts 不同：int 没有安全/超安全分叉，lean 不会 number / Int32 混杂
+    expect(lean!.ranks).toEqual([1, -3]);
+    for (const rank of lean!.ranks) {
+      expect(typeof rank).toBe("number");
+    }
+
+    const hit = await TasonScore.findOne({ score: "42" }).lean();
+    expect(hit).not.toBeNull();
+
+    const body = s.stringify(toScoreRecord(lean as Record<string, any>));
+    expect(body).toContain("ranks:[1,-3]");
+    const echoed = s.parseAs(ScoreRecord, body);
+    expect(echoed.ranks).toEqual([1, -3]);
   });
 });
