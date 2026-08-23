@@ -11,7 +11,7 @@ import {
   UUID,
 } from "bson";
 import TASON from "tason";
-import { registerMongoDBTypes } from "../src";
+import { registerMongo } from "./test-bson";
 
 /**
  * B：include / allowUnsafeTypes / replaceDefaultImplementation
@@ -30,38 +30,38 @@ function createSerializer(
 describe("register options", () => {
   test("include subset", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry, { include: ["ObjectId"] });
+    registerMongo(s.registry, { include: ["ObjectId"] });
     expect(s.parse(`ObjectId("${OID_HEX}")`)).toBeInstanceOf(ObjectId);
     expect(() => s.parse(`BSONMinKey("")`)).toThrow(/Unregistered type/);
   });
 
   test("BSONJavaScript default skip", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     expect(s.registry.getDefaultType("BSONJavaScript")).toBeUndefined();
     expect(() => s.parse(`BSONJavaScript("1+1")`)).toThrow(/Unregistered type/);
   });
 
   test("BSONJavaScript allowUnsafeTypes", () => {
     const s = createSerializer({ allowUnsafeTypes: true });
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     expect(s.parse(`BSONJavaScript("1+1")`).code).toBe("1+1");
   });
 
   test("BSONJavaScript include gate", () => {
     const s = createSerializer();
     expect(() =>
-      registerMongoDBTypes(s.registry, { include: ["BSONJavaScript"] }),
+      registerMongo(s.registry, { include: ["BSONJavaScript"] }),
     ).toThrow(/allowUnsafeTypes/);
 
     const unsafe = createSerializer({ allowUnsafeTypes: true });
-    registerMongoDBTypes(unsafe.registry, { include: ["BSONJavaScript"] });
+    registerMongo(unsafe.registry, { include: ["BSONJavaScript"] });
     expect(unsafe.parse(`BSONJavaScript("x")`).code).toBe("x");
   });
 
   test("replaceDefault all", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry, { replaceDefaultImplementation: true });
+    registerMongo(s.registry, { replaceDefaultImplementation: true });
     expect(s.parse(`Int64("1")`)).toBeInstanceOf(Long);
     expect(s.parse(`Decimal128("1.25")`)).toBeInstanceOf(Decimal128);
     expect(s.parse(`Int32("42")`)).toBeInstanceOf(Int32);
@@ -74,7 +74,7 @@ describe("register options", () => {
 
   test("replaceDefault per name", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry, {
+    registerMongo(s.registry, {
       replaceDefaultImplementation: { Int64: true },
     });
     expect(s.parse(`Int64("1")`)).toBeInstanceOf(Long);
@@ -84,7 +84,7 @@ describe("register options", () => {
 
   test("parseAs Long", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     const once = s.parseAs(Long, `Int64("1")`);
     expect(once).toBeInstanceOf(Long);
     expect(once.toString()).toBe("1");
@@ -94,7 +94,7 @@ describe("register options", () => {
 
   test("promoteLongs vs Long instance", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     // 驱动 promoteLongs: true → 安全整数是 number，走字面量
     expect(s.stringify(1)).toBe("1");
     // promoteLongs: false → Long 实例写出 Int64
@@ -103,7 +103,7 @@ describe("register options", () => {
 
   test("replaceDefault Buffer", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry, {
+    registerMongo(s.registry, {
       replaceDefaultImplementation: { Buffer: true },
     });
     const parsed = s.parse(`Buffer("hex,61")`);
@@ -115,7 +115,7 @@ describe("register options", () => {
 
   test("promoteBuffers vs Binary instance", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     const md5Hex = "00112233445566778899aabbccddeeff";
     const md5 = Binary.createFromHexString(md5Hex, Binary.SUBTYPE_MD5);
     const raw = serialize({ bin: new Binary(Uint8Array.of(0x61)), hash: md5 });
@@ -133,7 +133,7 @@ describe("register options", () => {
 
   test("parseAs Binary MD5", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     const hex = "00112233445566778899aabbccddeeff";
     const once = s.parseAs(Binary, `MD5("${hex}")`);
     expect(once).toBeInstanceOf(Binary);
@@ -142,7 +142,7 @@ describe("register options", () => {
 
   test("Handling vs bson numeric", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     const long = Long.fromInt(1);
     // Handling 不认 bson 包装：默认也装箱；none 无法拆字面量
     expect(s.stringify(long)).toBe(`Int64("1")`);
@@ -152,7 +152,7 @@ describe("register options", () => {
       `Decimal128("1.25")`,
     );
     const none = createSerializer({ serializeNumberHandling: "none" });
-    registerMongoDBTypes(none.registry);
+    registerMongo(none.registry);
     expect(() => none.stringify(long)).toThrow(/none/);
     expect(() => none.stringify(new Int32(42))).toThrow(/none/);
     expect(() => none.stringify(new Double(1.5))).toThrow(/none/);
@@ -166,12 +166,12 @@ describe("register options", () => {
 
     // ser all：bson 数值类同样装箱（矩阵与 unsafe-only 同列）
     const all = createSerializer({ serializeNumberHandling: "all" });
-    registerMongoDBTypes(all.registry);
+    registerMongo(all.registry);
     expect(all.stringify(long)).toBe(`Int64("1")`);
 
     // 未 replace：de all 仍是核心包装
     const keep = createSerializer({ deserializeNumberHandling: "all" });
-    registerMongoDBTypes(keep.registry);
+    registerMongo(keep.registry);
     expect(keep.parse(`Int64("1")`)).toBeInstanceOf(TASON.Types.Int64.ctor);
     expect(keep.parse(`Int64("1")`)).not.toBeInstanceOf(Long);
     expect(keep.parse(`Int32("42")`).constructor).toBe(TASON.Types.Int32.ctor);
@@ -183,13 +183,13 @@ describe("register options", () => {
     const replaced = createSerializer({
       deserializeNumberHandling: "native",
     });
-    registerMongoDBTypes(replaced.registry, {
+    registerMongo(replaced.registry, {
       replaceDefaultImplementation: { Int64: true },
     });
     expect(replaced.parse(`Int64("1")`)).toBeInstanceOf(Long);
 
     const replacedAll = createSerializer({ deserializeNumberHandling: "all" });
-    registerMongoDBTypes(replacedAll.registry, {
+    registerMongo(replacedAll.registry, {
       replaceDefaultImplementation: { Int64: true },
     });
     expect(replacedAll.parse(`Int64("1")`)).toBeInstanceOf(Long);
@@ -197,7 +197,7 @@ describe("register options", () => {
 
   test("promoteValues / useBigInt64", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     const raw = serialize({
       i: new Int32(42),
       d: new Double(1.5),

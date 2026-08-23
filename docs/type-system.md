@@ -253,7 +253,7 @@ TASON.registry.setDefaultTypeByCtor("Int64", Long); // 替换默认实现：此�
 | 内置鸭子类型：`Timestamp` ← `DateTimeOffset`、`UInt16` ← `Char` | 扩展包追加：`Int64` ← `bson.Long` 等 | C# 在内置表注册；JS 生态数值库众多，多实现交给扩展包与用户 |
 
 扩展包（如 [`tason-mongodb`](../packages/tason-mongodb/README.md)）通过 `registerMongoDBTypes` 使用上述 API，
-并提供 `replaceDefaultImplementation` 选项一次性完成「注册 + 替换默认」；BSON 类型实现与选项矩阵见该包 README。
+并提供 `replaceDefaultImplementation` 选项一次性完成「注册 + 替换默认」；类型清单见该包 README，数值矩阵见 [behavior-matrix.md](../packages/tason-mongodb/behavior-matrix.md)。
 
 ## 扩展类型
 
@@ -270,5 +270,5 @@ TASON.registry.setDefaultTypeByCtor("Int64", Long); // 替换默认实现：此�
 | `BSONEncrypted` / `BSONSensitive` | `BSONEncrypted("base64,…")` | `bson.Binary` subtype 6 / 8 |
 | `BSONVector` | `BSONVector({ dtype, values })` | `bson.Binary` subtype 9；`dtype` 为 `"int8"` / `"float32"` / `"packedBit"` |
 
-Binary 子类型、驱动 `promote*` 与 `replaceDefault` / Handling 交叉见该包 README 的选项矩阵。  
+Binary 子类型、驱动 `promote*` 与 `replaceDefault` / Handling 交叉见 [behavior-matrix.md](../packages/tason-mongodb/behavior-matrix.md)。  
 对象图写入文档时的 `_t` 打标 **不属于** 该扩展包，见实现资料 `docs/features/polymorphic-persistence/`。

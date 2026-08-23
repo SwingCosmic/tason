@@ -1,47 +1,56 @@
 import { defineType } from "tason";
-import { Code, MaxKey, MinKey, ObjectId, Timestamp } from "bson";
+import type { Code, MaxKey, MinKey, ObjectId, Timestamp } from "bson";
+import { getBson } from "../bson-ns";
 
 const OBJECT_ID_HEX = /^[0-9a-fA-F]{24}$/;
 
 export const ObjectIdTypeInfo = defineType<ObjectId>({
   kind: "scalar",
-  ctor: ObjectId,
+  get ctor() {
+    return getBson().ObjectId;
+  },
   serialize: (value) => value.toHexString(),
   deserialize: (value) => {
     if (!OBJECT_ID_HEX.test(value)) {
       throw new TypeError(`Invalid ObjectId: ${value}`);
     }
-    return new ObjectId(value);
+    return new (getBson().ObjectId)(value);
   },
 });
 
 export const BSONMinKeyTypeInfo = defineType<MinKey>({
   kind: "scalar",
-  ctor: MinKey,
+  get ctor() {
+    return getBson().MinKey;
+  },
   serialize: () => "",
   deserialize: (value) => {
     if (value !== "") {
       throw new TypeError("BSONMinKey does not take a payload");
     }
-    return new MinKey();
+    return new (getBson().MinKey)();
   },
 });
 
 export const BSONMaxKeyTypeInfo = defineType<MaxKey>({
   kind: "scalar",
-  ctor: MaxKey,
+  get ctor() {
+    return getBson().MaxKey;
+  },
   serialize: () => "",
   deserialize: (value) => {
     if (value !== "") {
       throw new TypeError("BSONMaxKey does not take a payload");
     }
-    return new MaxKey();
+    return new (getBson().MaxKey)();
   },
 });
 
 export const BSONTimestampTypeInfo = defineType<Timestamp>({
   kind: "object",
-  ctor: Timestamp,
+  get ctor() {
+    return getBson().Timestamp;
+  },
   match: (value) => value._bsontype === "Timestamp",
   serialize: (value) => ({ t: value.t, i: value.i }),
   deserialize: (value) => {
@@ -50,18 +59,20 @@ export const BSONTimestampTypeInfo = defineType<Timestamp>({
     if (typeof t !== "number" || typeof i !== "number") {
       throw new TypeError("BSONTimestamp requires numeric t and i");
     }
-    return new Timestamp({ t, i });
+    return new (getBson().Timestamp)({ t, i });
   },
 });
 
 export const BSONJavaScriptTypeInfo = defineType<Code>({
   kind: "scalar",
-  ctor: Code,
+  get ctor() {
+    return getBson().Code;
+  },
   serialize: (value) => {
     if (value.scope != null) {
       throw new TypeError("BSONJavaScript does not support code with scope");
     }
     return value.code;
   },
-  deserialize: (value) => new Code(value),
+  deserialize: (value) => new (getBson().Code)(value),
 });

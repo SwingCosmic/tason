@@ -1,6 +1,6 @@
 {
   "name": "tason-mongodb",
-  "version": "0.2.3-beta2",
+  "version": "0.3.1",
   "description": "MongoDB / BSON type extensions for TASON",
   "type": "module",
   "keywords": [
@@ -12,9 +12,17 @@
   ],
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "default": "./lib/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc && tsc-alias",
-    "test": "jest"
+    "test": "jest && npm run test:esm",
+    "test:esm": "npm run build && node test/esm-driver-bson.mjs"
   },
   "files": [
     "lib"

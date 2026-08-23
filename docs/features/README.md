@@ -13,6 +13,7 @@
 | [../class-metadata.md](../class-metadata.md) | 实体 Schema |
 | [../regexp.md](../regexp.md) | RegExp |
 | [../../packages/tason-mongodb/README.md](../../packages/tason-mongodb/README.md) | Mongo 扩展（使用说明） |
+| [../tason-mongodb.md](../tason-mongodb.md) | mongoose / 持有点 / 集成测试 |
 
 ---
 
@@ -45,7 +46,7 @@
 | 数值实现协议 `unwrapNumber`（数值 TypeName 多实现的统一 Handling；未实施） | [runtime-type/phase-4-number-protocol.md](./runtime-type/phase-4-number-protocol.md) |
 | `asDefault` / `parseAs` / `getTypeInfoByCtor` | [runtime-type/phase-3-duck-types.md](./runtime-type/phase-3-duck-types.md) |
 | `registerMongoDBTypes`、`replaceDefaultImplementation`、扩展包约定 | [monorepo/implementation-plan.md](./monorepo/implementation-plan.md) |
-| 官方 BSON 清单、序列化/反序列化映射、选项交叉设计要点与测试覆盖（行为矩阵在包 README） | [monorepo/phase-c-bson-types.md](./monorepo/phase-c-bson-types.md) |
+| 官方 BSON 清单、序列化/反序列化映射、选项交叉设计要点与测试覆盖（行为矩阵在 [behavior-matrix.md](../../packages/tason-mongodb/behavior-matrix.md)） | [monorepo/phase-c-bson-types.md](./monorepo/phase-c-bson-types.md) |
 | `toDocument` / `fromDocument`、`_t` 语义 | [polymorphic-persistence/design.md](./polymorphic-persistence/design.md) |
 
 职责边界可以在相邻 feature 里各写一句（例如「`tason-mongodb` 不做对象打标」），但不要互相抄阶段表。

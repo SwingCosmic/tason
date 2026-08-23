@@ -84,7 +84,8 @@ export type MongoTypeInfos =
   | readonly TASONTypeInfo<any>[];
 
 /**
- * 类型实现表。测试与高级定制可覆盖。
+ * 类型实现表。ctor 从模块 bson 持有点读取，须先
+ * `registerMongoDBTypes(registry, { bson })`。可测试覆盖条目。
  */
 export const MongoTypes: Record<MongoTypeName, MongoTypeInfos> = {
   ObjectId: ObjectIdTypeInfo,

@@ -1,49 +1,52 @@
 import { defineType } from "tason";
-import {
-  Binary,
-  Decimal128,
-  Double,
-  Int32,
-  Long,
-  UUID,
-} from "bson";
+import type { Binary, Decimal128, Double, Int32, Long, UUID } from "bson";
+import { getBson } from "../bson-ns";
 
 /** Long 继承链含 Timestamp，必须靠 _bsontype 拆开 */
 export const Int64TypeInfo = defineType<Long>({
   kind: "scalar",
-  ctor: Long,
+  get ctor() {
+    return getBson().Long;
+  },
   match: (value) => value._bsontype === "Long",
   serialize: (value) => value.toString(),
-  deserialize: (value) => Long.fromString(value),
+  deserialize: (value) => getBson().Long.fromString(value),
 });
 
 export const Decimal128TypeInfo = defineType<Decimal128>({
   kind: "scalar",
-  ctor: Decimal128,
+  get ctor() {
+    return getBson().Decimal128;
+  },
   serialize: (value) => value.toString(),
-  // 不 rounding，与分册表 3 一致
-  deserialize: (value) => Decimal128.fromString(value),
+  deserialize: (value) => getBson().Decimal128.fromString(value),
 });
 
 export const Int32TypeInfo = defineType<Int32>({
   kind: "scalar",
-  ctor: Int32,
+  get ctor() {
+    return getBson().Int32;
+  },
   serialize: (value) => value.toString(),
-  deserialize: (value) => Int32.fromString(value),
+  deserialize: (value) => getBson().Int32.fromString(value),
 });
 
 export const Float64TypeInfo = defineType<Double>({
   kind: "scalar",
-  ctor: Double,
+  get ctor() {
+    return getBson().Double;
+  },
   serialize: (value) => value.toString(),
-  deserialize: (value) => Double.fromString(value),
+  deserialize: (value) => getBson().Double.fromString(value),
 });
 
 export const UUIDTypeInfo = defineType<UUID>({
   kind: "scalar",
-  ctor: UUID,
+  get ctor() {
+    return getBson().UUID;
+  },
   serialize: (value) => value.toHexString(),
-  deserialize: (value) => new UUID(value),
+  deserialize: (value) => new (getBson().UUID)(value),
 });
 
 /**
@@ -52,12 +55,18 @@ export const UUIDTypeInfo = defineType<UUID>({
  */
 export const UUIDBinaryTypeInfo = defineType<Binary>({
   kind: "scalar",
-  ctor: Binary,
-  match: (value) =>
-    !(value instanceof UUID) &&
-    (value.sub_type === Binary.SUBTYPE_UUID_OLD ||
-      value.sub_type === Binary.SUBTYPE_UUID),
+  get ctor() {
+    return getBson().Binary;
+  },
+  match: (value) => {
+    const { Binary, UUID } = getBson();
+    return (
+      !(value instanceof UUID) &&
+      (value.sub_type === Binary.SUBTYPE_UUID_OLD ||
+        value.sub_type === Binary.SUBTYPE_UUID)
+    );
+  },
   serialize: (value) =>
-    new UUID(value.buffer.subarray(0, 16)).toHexString(),
-  deserialize: (value) => new UUID(value),
+    new (getBson().UUID)(value.buffer.subarray(0, 16)).toHexString(),
+  deserialize: (value) => new (getBson().UUID)(value),
 });

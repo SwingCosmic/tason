@@ -1,12 +1,12 @@
 import { describe, expect, test } from "@jest/globals";
-import { Binary, Long } from "bson";
+import { Long } from "bson";
 import TASON from "tason";
 import {
   ALL_MONGO_TYPE_NAMES,
   MongoTypeCatalog,
   MongoTypes,
-  registerMongoDBTypes,
 } from "../src";
+import { registerMongo, testBson } from "./test-bson";
 
 /**
  * 注册入口：catalog / 未知 include / 追加实现
@@ -20,29 +20,29 @@ describe("registerMongoDBTypes", () => {
   test("Buffer appends Binary implementation", () => {
     const s = createSerializer();
     const before = s.registry.getDefaultType("Buffer");
-    expect(registerMongoDBTypes(s.registry)).toBe(s.registry);
+    expect(registerMongo(s.registry)).toBe(s.registry);
     // 未 replaceDefault：默认仍是核心 Buffer，追加 bson.Binary
     expect(s.registry.getDefaultType("Buffer")).toBe(before);
     expect(s.registry.getAllTypes("Buffer")).toHaveLength(2);
-    expect(s.registry.getDefaultType("MD5")!.ctor).toBe(Binary);
+    expect(s.registry.getDefaultType("MD5")!.ctor).toBe(testBson.Binary);
   });
 
   test("repeated registration is idempotent", () => {
     const s = createSerializer();
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     const sizes = Object.fromEntries(
       ALL_MONGO_TYPE_NAMES.map((n) => [n, s.registry.getAllTypes(n).length]),
     );
 
     // 第二次调用按 ctor 幂等更新：不堆积、不改默认
-    registerMongoDBTypes(s.registry);
+    registerMongo(s.registry);
     for (const [name, size] of Object.entries(sizes)) {
       expect(s.registry.getAllTypes(name)).toHaveLength(size);
     }
     expect(s.parse(`Int64("1")`)).toBe(1n);
 
     // 第二次带 replaceDefault：默认切换且仍不堆积
-    registerMongoDBTypes(s.registry, {
+    registerMongo(s.registry, {
       replaceDefaultImplementation: { Int64: true },
     });
     expect(s.registry.getAllTypes("Int64")).toHaveLength(sizes.Int64);
@@ -52,7 +52,7 @@ describe("registerMongoDBTypes", () => {
   test("unknown include", () => {
     const s = createSerializer();
     expect(() =>
-      registerMongoDBTypes(s.registry, {
+      registerMongo(s.registry, {
         include: ["NotAMongoType" as any],
       }),
     ).toThrow(/Unknown MongoDB type/);

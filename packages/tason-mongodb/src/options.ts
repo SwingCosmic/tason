@@ -1,3 +1,4 @@
+import type { BsonNamespace } from "./bson-ns";
 import type { MongoTypeName } from "./types";
 
 /**
@@ -14,6 +15,14 @@ export type ReplaceDefaultImplementationMap = {
 };
 
 export type RegisterMongoDBTypesOptions = {
+  /**
+   * 绑定 TypeInfo.ctor / deserialize 的 bson 命名空间。
+   * 写入模块持有点；静态 TypeInfo 的 `ctor` 经 getter 读到同一份 class。
+   * 省略则 {@link loadDefaultBson}（Node CJS `bson`，与 `mongodb` / `mongoose.mongo` 同一副本）。
+   *
+   * 典型：`mongoose.mongo`、`import { … } from 'mongodb'`。不要 `import from 'bson'`（ESM 会是另一份）。
+   */
+  bson?: BsonNamespace;
   /**
    * 是否将可映射项设为对应内置 TypeName 的默认实现
    *（内部调用核心 `registerType(..., { asDefault })`）。

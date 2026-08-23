@@ -1,19 +1,6 @@
 import { defineType } from "tason";
-import { Binary, UUID } from "bson";
-
-/** UUID / MD5 / Encrypted / Sensitive / Vector 不走 Buffer 追加实现 */
-const DEDICATED_BINARY_SUBTYPES = new Set<number>([
-  Binary.SUBTYPE_UUID_OLD,
-  Binary.SUBTYPE_UUID,
-  Binary.SUBTYPE_MD5,
-  Binary.SUBTYPE_ENCRYPTED,
-  Binary.SUBTYPE_SENSITIVE,
-  Binary.SUBTYPE_VECTOR,
-]);
-
-const MD5_HEX = /^[0-9a-fA-F]{32}$/;
-const HEX_BODY = /^[0-9a-fA-F]*$/;
-const BASE64_BODY = /^[A-Za-z0-9/+=]*$/;
+import type { Binary } from "bson";
+import { getBson } from "../bson-ns";
 
 type VectorDtype = "int8" | "float32" | "packedBit";
 
@@ -21,6 +8,22 @@ interface BSONVectorArg {
   dtype?: unknown;
   values?: unknown;
   padding?: unknown;
+}
+
+const MD5_HEX = /^[0-9a-fA-F]{32}$/;
+const HEX_BODY = /^[0-9a-fA-F]*$/;
+const BASE64_BODY = /^[A-Za-z0-9/+=]*$/;
+
+function dedicatedBinarySubtypes(): Set<number> {
+  const { Binary } = getBson();
+  return new Set<number>([
+    Binary.SUBTYPE_UUID_OLD,
+    Binary.SUBTYPE_UUID,
+    Binary.SUBTYPE_MD5,
+    Binary.SUBTYPE_ENCRYPTED,
+    Binary.SUBTYPE_SENSITIVE,
+    Binary.SUBTYPE_VECTOR,
+  ]);
 }
 
 function binaryBytes(value: Binary): Uint8Array {
@@ -54,6 +57,7 @@ function decodeBufferText(value: string): { type: "base64" | "hex"; data: string
 }
 
 function binaryFromBufferText(value: string, subType: number): Binary {
+  const { Binary } = getBson();
   const { type, data } = decodeBufferText(value);
   return type === "hex"
     ? Binary.createFromHexString(data, subType)
@@ -69,18 +73,24 @@ function requireNumberArray(values: unknown, label: string): number[] {
 
 export const BufferTypeInfo = defineType<Binary>({
   kind: "scalar",
-  ctor: Binary,
-  match: (value) =>
-    !(value instanceof UUID) && !DEDICATED_BINARY_SUBTYPES.has(value.sub_type),
+  get ctor() {
+    return getBson().Binary;
+  },
+  match: (value) => {
+    const { UUID } = getBson();
+    return !(value instanceof UUID) && !dedicatedBinarySubtypes().has(value.sub_type);
+  },
   serialize: encodeBufferText,
   deserialize: (value) =>
-    binaryFromBufferText(value, Binary.SUBTYPE_DEFAULT),
+    binaryFromBufferText(value, getBson().Binary.SUBTYPE_DEFAULT),
 });
 
 export const MD5TypeInfo = defineType<Binary>({
   kind: "scalar",
-  ctor: Binary,
-  match: (value) => value.sub_type === Binary.SUBTYPE_MD5,
+  get ctor() {
+    return getBson().Binary;
+  },
+  match: (value) => value.sub_type === getBson().Binary.SUBTYPE_MD5,
   serialize: (value) => {
     const bytes = binaryBytes(value);
     if (bytes.length !== 16) {
@@ -93,33 +103,41 @@ export const MD5TypeInfo = defineType<Binary>({
     if (!MD5_HEX.test(hex)) {
       throw new TypeError(`Invalid MD5: ${value}`);
     }
+    const { Binary } = getBson();
     return Binary.createFromHexString(hex, Binary.SUBTYPE_MD5);
   },
 });
 
 export const BSONEncryptedTypeInfo = defineType<Binary>({
   kind: "scalar",
-  ctor: Binary,
-  match: (value) => value.sub_type === Binary.SUBTYPE_ENCRYPTED,
+  get ctor() {
+    return getBson().Binary;
+  },
+  match: (value) => value.sub_type === getBson().Binary.SUBTYPE_ENCRYPTED,
   serialize: encodeBufferText,
   deserialize: (value) =>
-    binaryFromBufferText(value, Binary.SUBTYPE_ENCRYPTED),
+    binaryFromBufferText(value, getBson().Binary.SUBTYPE_ENCRYPTED),
 });
 
 export const BSONSensitiveTypeInfo = defineType<Binary>({
   kind: "scalar",
-  ctor: Binary,
-  match: (value) => value.sub_type === Binary.SUBTYPE_SENSITIVE,
+  get ctor() {
+    return getBson().Binary;
+  },
+  match: (value) => value.sub_type === getBson().Binary.SUBTYPE_SENSITIVE,
   serialize: encodeBufferText,
   deserialize: (value) =>
-    binaryFromBufferText(value, Binary.SUBTYPE_SENSITIVE),
+    binaryFromBufferText(value, getBson().Binary.SUBTYPE_SENSITIVE),
 });
 
 export const BSONVectorTypeInfo = defineType<Binary>({
   kind: "object",
-  ctor: Binary,
-  match: (value) => value.sub_type === Binary.SUBTYPE_VECTOR,
+  get ctor() {
+    return getBson().Binary;
+  },
+  match: (value) => value.sub_type === getBson().Binary.SUBTYPE_VECTOR,
   serialize: (value) => {
+    const { Binary } = getBson();
     const dtypeCode = value.buffer[0];
     if (dtypeCode === Binary.VECTOR_TYPE.Int8) {
       return { dtype: "int8", values: Array.from(value.toInt8Array()) };
@@ -141,6 +159,7 @@ export const BSONVectorTypeInfo = defineType<Binary>({
     throw new TypeError(`Unsupported BSONVector dtype: ${dtypeCode}`);
   },
   deserialize: (value) => {
+    const { Binary } = getBson();
     const arg = value as BSONVectorArg;
     const values = requireNumberArray(arg.values, "values");
     if (arg.dtype === "int8") {

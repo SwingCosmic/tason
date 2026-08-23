@@ -133,7 +133,7 @@ s.parseAs(Long, `Int64("6571037680684232705")`);     // bson.Long
 ```
 
 同一 TypeName 挂多种实现（鸭子类型注册）、替换默认实现等通用能力见 [类型系统](docs/type-system.md#同一-typename-的多种实现)；
-驱动 `promote*` 选项、数值处理交叉等完整矩阵见 [tason-mongodb README](packages/tason-mongodb/README.md)。
+驱动 `promote*` 选项、数值处理交叉等完整矩阵见 [tason-mongodb/behavior-matrix.md](packages/tason-mongodb/behavior-matrix.md)。
 
 `tason` 仅支持 ESM：前端需打包器（Vite、webpack 等）；Node.js 需原生 ESM。
 

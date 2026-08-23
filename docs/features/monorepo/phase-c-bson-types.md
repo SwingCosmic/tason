@@ -2,7 +2,7 @@
 
 > 进度：[implementation-plan.md](./implementation-plan.md) · 用语：[glossary.md](../glossary.md)  
 > 依据：[BSON Types](https://www.mongodb.com/docs/manual/reference/bson-types/) · [bsonspec](https://bsonspec.org/spec.html) · `bson` 6.x  
-> 表 2 / 3：TypeName ↔ BSON / JS 对象。§5：选项交叉的设计要点与测试覆盖（**行为矩阵只在 [包 README](../../../packages/tason-mongodb/README.md) 维护一份**）。C1 / C2 / C3 均已填。§6：数值 Handling 的现行 / 协议后行为差异（依赖 runtime-type [phase-4](../runtime-type/phase-4-number-protocol.md)）。  
+> 表 2 / 3：TypeName ↔ BSON / JS 对象。§5：选项交叉的设计要点与测试覆盖（**行为矩阵只在 [behavior-matrix.md](../../../packages/tason-mongodb/behavior-matrix.md) 维护一份**）。C1 / C2 / C3 均已填。§6：数值 Handling 的现行 / 协议后行为差异（依赖 runtime-type [phase-4](../runtime-type/phase-4-number-protocol.md)）。  
 > 命名：仅 BSON 内部语义以 `BSON` 开头；`ObjectId` / `UUID` / `MD5` / 数字 / `Buffer` 不加前缀。实施分 C1 / C2 / C3，见 [implementation-plan](./implementation-plan.md)。
 
 ---
@@ -229,7 +229,7 @@ TypeInstance  TypeName(arg)
 
 ## 5. 选项交叉：设计要点与测试覆盖
 
-表 2 / 3 是 TypeName ↔ 对象。驱动读选项与本包 / Handling 交叉后的 **行为矩阵只在 [包 README](../../../packages/tason-mongodb/README.md)「选项与行为矩阵」维护一份**，本节不复制矩阵，只记职责划分、机制说明与测试覆盖。协议后的行为差异另见 §6。
+表 2 / 3 是 TypeName ↔ 对象。驱动读选项与本包 / Handling 交叉后的 **行为矩阵只在 [behavior-matrix.md](../../../packages/tason-mongodb/behavior-matrix.md) 维护一份**，本节不复制矩阵，只记职责划分、机制说明与测试覆盖。协议后的行为差异另见 §6。
 
 两层不要混：
 
@@ -237,7 +237,7 @@ TypeInstance  TypeName(arg)
 2. `replaceDefaultImplementation` 只改 parse 的 `types[0]`。核心 Number Handling 现行**只拆 / 只裸写核心数值包装**；`bson.Long` 等不是核心包装（协议后的变化见 §6）。
 3. `replaceDefaultImplementation` **不作用于 stringify**（机制见 §5.1）。
 
-包 README 三张矩阵与本节的对应：驱动读出 → `stringify`（§5 职责 1）、`parse`：`replaceDefault` × Handling（职责 2）、`stringify` bson 数值类 × Handling（职责 3，含「replaceDefault 不影响序列化」的结论）。
+behavior-matrix 三张矩阵与本节的对应：驱动读出 → `stringify`（§5 职责 1）、`parse`：`replaceDefault` × Handling（职责 2）、`stringify` bson 数值类 × Handling（职责 3，含「replaceDefault 不影响序列化」的结论）。
 
 ### 5.1 replaceDefault 与序列化无关（机制说明）
 
@@ -259,14 +259,14 @@ stringify 扫描（`tryGetTypeInfo` 兜底路径）按「TypeName 插入序 × �
 | T1–Tn | 各 TypeName 默认 parse / stringify（含 Binary 选型） | `types.test.ts` |
 | R1 | catalog / Buffer 追加实现 | `register.test.ts` |
 
-不要在本包测试里抄核心 N1–N8 全矩阵；只固定包 README 矩阵与驱动选项的交叉场景。
+不要在本包测试里抄核心 N1–N8 全矩阵；只固定 behavior-matrix 与驱动选项的交叉场景。
 
 不在本包测：核心 Handling 全类型矩阵（`number-handling.test.ts`）；真实驱动 / mongoose（C 集成，需额外环境）。
 
 ---
 ## 6. 数值 Handling：现行与协议后的行为差异（待 runtime-type phase-4）
 
-[包 README](../../../packages/tason-mongodb/README.md) 的行为矩阵与 §5.2 的 M6 测试描述的是 **C1–C3 已实现的行为**。「统一数值实现协议」——数值 TypeName 的实现（内置与第三方）以 `TASONTypeInfo.unwrapNumber` 为统一契约、核心单轨化、多实现共存——设计定稿于 **[runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，尚未实施**（进度在该 feature 的 implementation-plan 勾选）。协议实现后，按本表回改包 README 矩阵与 M6 测试（跟进任务：[implementation-plan](./implementation-plan.md) 阶段 C4）。
+[behavior-matrix.md](../../../packages/tason-mongodb/behavior-matrix.md) 与 §5.2 的 M6 测试描述的是 **C1–C3 已实现的行为**。「统一数值实现协议」——数值 TypeName 的实现（内置与第三方）以 `TASONTypeInfo.unwrapNumber` 为统一契约、核心单轨化、多实现共存——设计定稿于 **[runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，尚未实施**（进度在该 feature 的 implementation-plan 勾选）。协议实现后，按本表回改 behavior-matrix 与 M6 测试（跟进任务：[implementation-plan](./implementation-plan.md) 阶段 C4）。
 
 | 差异点 | 现行为（已实现） | 协议落地后 |
 | --- | --- | --- |

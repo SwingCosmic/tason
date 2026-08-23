@@ -21,3 +21,5 @@ export type {
   MongoTypeStrategy,
   MongoTypeInfos,
 } from "./types";
+export { loadDefaultBson, getBson, isBsonBound } from "./bson-ns";
+export type { BsonNamespace } from "./bson-ns";

@@ -13,7 +13,7 @@ import {
   UUID,
 } from "bson";
 import TASON from "tason";
-import { registerMongoDBTypes } from "../src";
+import { registerMongo } from "./test-bson";
 
 /**
  * A：TypeName ↔ bson 类（往返 / instanceof / _bsontype）
@@ -27,7 +27,7 @@ function createSerializer(
   options?: ConstructorParameters<typeof TASON.Serializer>[0],
 ) {
   const s = new TASON.Serializer({ indent: false, ...options });
-  registerMongoDBTypes(s.registry);
+  registerMongo(s.registry);
   return s;
 }
 

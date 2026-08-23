@@ -260,7 +260,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | `stringify` 查询结果 / `lean()` 文档中的 `ObjectId`、`Long`、`Decimal128` | **能** | 注册对应 TypeInfo，且 **`instanceof` 命中**（同一 bson 副本） |
 | `parse` 出上述类型再 `insertOne` / 赋给 mongoose 路径 | **能** | `replaceDefaultImplementation` 将默认设为 BSON 类，或业务侧接受 cast；`mongoose-long` 的 `cast` 也认 `instanceof mongo.Long` |
 | 未 `registerMongoDBTypes` 就 parse `ObjectId("…")` | **不能** | 核心无 ObjectId |
-| 直接 `stringify(mongooseDocument)` 整棵 Document | **部分** | Document 有原型/内部状态；**推荐 `doc.toObject({ flattenMaps: true })`** 后再 stringify。`lean()` 不是更便宜的 `toObject()`（跳过 Schema cast，安全 long 会被驱动提升为 `number`），见包 README「与 Mongoose 一起用」 |
+| 直接 `stringify(mongooseDocument)` 整棵 Document | **部分** | Document 有原型/内部状态；**推荐 `doc.toObject({ flattenMaps: true })`** 后再 stringify。`lean()` 不是更便宜的 `toObject()`（跳过 Schema cast，安全 long 会被驱动提升为 `number`），见 [docs/tason-mongodb.md](../../tason-mongodb.md) |
 | Schema 声明为 `BigInt` 的字段 | **靠核心** | 值是 `bigint`，用核心 number handling / Int64，不必 Mongo Long 的追加类型实现 |
 | 双份 `bson`（nested node_modules） | **易失效** | `instanceof` 失败 → stringify 无法识别、parse 得到的类驱动也无法识别。**强制 peer `bson`，文档要求与 `mongodb`/`mongoose` 使用同一份 `bson`** |
 | 插件自定义 SchemaType 但值仍是 bson 类 | **能** | 与 mongoose-long 同模式 |
@@ -303,7 +303,7 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 | 层 | 文件 | 测什么 | 状态 |
 | --- | --- | --- | --- |
 | **A 类型** | `types.test.ts` | 每个 TypeName：parse / stringify 往返；与对应 `bson` 类互转（`instanceof`、`_bsontype` / `sub_type`）；未 register 时新 TypeName 失败 | 已落地 |
-| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。行为矩阵见包 README（单一出处）；覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
+| **B 配置** | `options.test.ts` | `include`、`allowUnsafeTypes`、`replaceDefaultImplementation`；Handling × bson 数值类；驱动 `promoteValues` / `promoteLongs` / `promoteBuffers` / `useBigInt64`。行为矩阵见 [behavior-matrix.md](../../../packages/tason-mongodb/behavior-matrix.md)（单一出处）；覆盖编号见 [phase-c §5](./phase-c-bson-types.md) | 已落地 |
 | 注册入口 | `register.test.ts` | catalog 命名 / `Buffer` 追加实现不动默认 / 未知 `include` 抛错 | 已落地 |
 | **C 集成** | `integration.mongodb.test.ts`（原生驱动）/ `integration.mongoose.test.ts`（mongoose）；共享夹具 `integration.shared.ts`（实体 / schema / 序列化器装配 / 请求文本），连接加载 `env.ts` | 真实 `mongodb` 连接 + mongoose：驱动 / `lean()` / `toObject()` 文档中的 ObjectId / Long / Decimal128 / UUID / Binary 子类型（MD5 / Encrypted / Sensitive / Vector）与数值装箱数组（`Int64[]` / `Decimal128[]` / `bigint[]`）读写；schema 实体（动态类型字段）+ `replaceDefaultImplementation: true` + number handling 默认，模拟 API 请求 / 响应的 TASON 序列化；含 mongoose-long（`Schema.Types.Long`）类型化 Long 字段 / 数组路径（不做专用适配，兼容即 `bson.Long`）；含 mongoose 内置 `Schema.Types.Int32`（与旧插件 mongoose-int32 同模式：cast → number，lean / toObject 无 Long 那种分叉）。连接信息 `.env`（占位）→ `.env.local` / 环境变量，未配置自动 skip | 已完成 |
 
@@ -401,16 +401,16 @@ Node 侧 Mongo 生态几乎都收敛到官方 **`bson` / `mongodb` 捆绑的 BSO
 
 ### 阶段 C4 — bson 数值类接入统一数值实现协议（依赖 runtime-type phase-4）
 
-**前提：** 核心「统一数值实现协议」（数值 TypeName 实现的统一契约 `TASONTypeInfo.unwrapNumber`、核心单轨化、多实现共存）由 runtime-type feature 实施——设计见 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，进度在该 feature 的 implementation-plan 勾选，**不在本文件**。协议落地后执行本阶段，并按分册 [§6 差异表](./phase-c-bson-types.md) 回改包 README 的行为矩阵。
+**前提：** 核心「统一数值实现协议」（数值 TypeName 实现的统一契约 `TASONTypeInfo.unwrapNumber`、核心单轨化、多实现共存）由 runtime-type feature 实施——设计见 [runtime-type/phase-4-number-protocol.md](../runtime-type/phase-4-number-protocol.md)，进度在该 feature 的 implementation-plan 勾选，**不在本文件**。协议落地后执行本阶段，并按分册 [§6 差异表](./phase-c-bson-types.md) 回改 [behavior-matrix.md](../../../packages/tason-mongodb/behavior-matrix.md)。
 
 | # | 任务 |
 | --- | --- |
 | C4.1 | 前置确认：runtime-type phase-4 已实施（钩子字段 + 注册校验可用） |
 | C4.2 | 本包：`Int64` / `Int32` / `Float64` / `Decimal128` 四个 bson TypeInfo 声明钩子（Long → `toBigInt()`，禁 `valueOf`） |
 | C4.3 | 测试：M6 按分册 §6 差异表重写（序列化三档、反序列化 `native` 拆 bson 类、`all` 保留、replace 后仍拆） |
-| C4.4 | 文档同步：包 README 行为矩阵改为协议后行为；分册 §6 差异表标记已落地 |
+| C4.4 | 文档同步：behavior-matrix 改为协议后行为；分册 §6 差异表标记已落地 |
 
-**DoD：** 分册 §6 差异表全部转为现行行为并合入包 README 矩阵；`none` 不再对 bson 类抛错；`native` 拆 `Long` → `bigint`；`all` 保 bson 类。
+**DoD：** 分册 §6 差异表全部转为现行行为并合入 behavior-matrix；`none` 不再对 bson 类抛错；`native` 拆 `Long` → `bigint`；`all` 保 bson 类。
 
 ### 阶段 D — 发布与文档抛光
 

@@ -4,6 +4,7 @@ import { Binary, Decimal128, Int32, Long, ObjectId, UUID } from "bson";
 import TASON, { createValibotAdapter } from "tason";
 import { registerMongoDBTypes } from "../src";
 import { getMongoTestConfig } from "./env";
+import { testBson } from "./test-bson";
 
 /**
  * C 集成共享夹具：连接配置 / 实体与 schema / API 序列化器装配 / 仓储映射 / 请求文本。
@@ -155,7 +156,10 @@ const AssetRecordSchema = v.object({
 export function createApiSerializer() {
   const s = new TASON.Serializer({ indent: false });
   s.registry.setSchemaAdapter(createValibotAdapter());
-  registerMongoDBTypes(s.registry, { replaceDefaultImplementation: true });
+  registerMongoDBTypes(s.registry, {
+    bson: testBson,
+    replaceDefaultImplementation: true,
+  });
   s.registry.registerType(
     "OrderRecord",
     { kind: "object", ctor: OrderRecord },

@@ -1,4 +1,5 @@
 import type { TASONTypeRegistry } from "tason";
+import { bindBson, loadDefaultBson } from "./bson-ns";
 import type { RegisterMongoDBTypesOptions } from "./options";
 import {
   ALL_MONGO_TYPE_NAMES,
@@ -20,6 +21,7 @@ function shouldReplaceDefault(
 /**
  * 向 registry 注册本包全部（或 `include` 指定的）类型。
  *
+ * - **先**把 `options.bson`（缺省 {@link loadDefaultBson}）写入模块持有点（静态 {@link MongoTypes} 的 ctor 随之变化）
  * - 新 TypeName：`registerType`
  * - 追加类型实现：`registerType` push；`replaceDefaultImplementation` 时 `asDefault`
  * - {@link MongoTypes} 缺条目则跳过，不改对应 registry
@@ -30,6 +32,8 @@ export function registerMongoDBTypes(
   registry: TASONTypeRegistry,
   options: RegisterMongoDBTypesOptions = {},
 ): TASONTypeRegistry {
+  bindBson(options.bson ?? loadDefaultBson());
+
   const include = options.include ?? [...ALL_MONGO_TYPE_NAMES];
   const known = new Set<string>(ALL_MONGO_TYPE_NAMES);
   for (const name of include) {
