@@ -1,6 +1,6 @@
 {
   "name": "tason-mongodb",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "MongoDB / BSON type extensions for TASON",
   "type": "module",
   "keywords": [
