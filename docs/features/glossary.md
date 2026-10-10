@@ -108,6 +108,8 @@ API 形状与行为矩阵见 [runtime-type/phase-3-duck-types.md](./runtime-type
 | **TypeInfo.`match`** | 在 `instanceof ctor` 之后再认领实例。同一 JS 类对应多个 TypeName 时用（`Binary.sub_type`、`Long` vs `Timestamp`） |
 | **`replaceDefaultImplementation`** | `tason-mongodb` 注册选项：在追加实现的同时把 bson 类替换为对应 TypeName 的默认实现（内部走 `asDefault`） |
 | **`unwrapNumber`（未实施）** | 数值 TypeName 实现的统一拆箱契约，内置与第三方实现同轨；设计见 [phase-4-number-protocol](./runtime-type/phase-4-number-protocol.md) |
+| **语法层解析（syntax parse）** | 不查 Registry、不构造运行时值的解析模式：只按 `TASON.g4` 建语法树并收集诊断，未注册 TypeName 合法。格式化器与语言工具的底座，设计见 [formatter/design.md](./formatter/design.md) |
+| **可见信息（不丢失）** | 格式化的验收口径：输出保留源文的全部语义内容（值、结构、TypeName）与每条注释；字面量文本可按选项重写（引号、转义形态、数值等值规范化）。见 [formatter/design.md](./formatter/design.md) |
 
 ## 外部表述
 

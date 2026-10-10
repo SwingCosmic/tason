@@ -64,6 +64,9 @@ tason/                          # 仓库根（private monorepo）
       src/                      # registerMongoDBTypes + MongoTypes + TypeInfo
       test/
       lib/
+  extensions/
+    vscode-tason/               # git submodule：VSCode 插件（独立仓库 vscode-extension-tason；
+                                #   非 yarn workspace，不参与根 build/test）
 ```
 
 **模块边界（摘要）：** Schema 只描述 RuntimeType；Registry 管 TypeName ↔ 实现；Handling 管装箱/拆箱策略；`types/` 只放核心内置实现。Mongo/BSON **不进** 核心默认表。对象图 `_t` 中间层 **不进** `tason-mongodb`。

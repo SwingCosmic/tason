@@ -17,7 +17,7 @@
 
 ---
 
-## 三个 feature 各自独立
+## 四个 feature 各自独立
 
 进度、阶段勾选、DoD **只写在本 feature 自己的 `implementation-plan.md`**。  
 不要把另一个 feature 的阶段号画进自己的进度图，也不要因为「以后可能组合使用」就互等对方做完。
@@ -27,11 +27,13 @@
 | [runtime-type/](./runtime-type/) | Number Handling、ClassMetadata / schema、同一 TypeName 的多实现与 `parseAs`、统一数值实现协议（phase-4，未实施） | BSON 类型实现、文档 `_t` | [implementation-plan.md](./runtime-type/implementation-plan.md) |
 | [monorepo/](./monorepo/) | Yarn workspaces、扩展包约定、`tason-mongodb` 的 BSON 标量 TypeInfo | 对象图 `_t`、核心 Handling / schema 的语义 | [implementation-plan.md](./monorepo/implementation-plan.md) |
 | [polymorphic-persistence/](./polymorphic-persistence/) | `toDocument` / `fromDocument`、文档节点上的 `_t` | BSON TypeInfo、改 TASON 语法 | [implementation-plan.md](./polymorphic-persistence/implementation-plan.md) |
+| [formatter/](./formatter/) | 语法层解析（不依赖 Registry 的 AST + 诊断）、格式化器 `formatTASON`、`tason/syntax` 子入口 | 值级 parse / stringify 语义、VSCode 插件本体实现 | [implementation-plan.md](./formatter/implementation-plan.md) |
 
 **实际依赖只有「使用已有 API」，没有排期上的互锁：**
 
 - runtime-type 已完成。其它 feature 把它当成已经存在的 Registry / Handling / `asDefault` / `parseAs`，不要再同步它的阶段勾选。
 - monorepo 与 polymorphic-persistence **没有实现前置关系**。前者注册 BSON 标量，后者给 ObjectType 写 `_t`。可以只做其中一件，也可以在应用里同时用。组合示例写在各自设计里即可，不要为此增加跨 feature 阶段。
+- formatter 只是共用 `TASON.g4` 的新并列入口，不改值级语义；与任何 feature 都没有排期互锁。
 
 ---
 
@@ -48,6 +50,7 @@
 | `registerMongoDBTypes`、`replaceDefaultImplementation`、扩展包约定 | [monorepo/implementation-plan.md](./monorepo/implementation-plan.md) |
 | 官方 BSON 清单、序列化/反序列化映射、选项交叉设计要点与测试覆盖（行为矩阵在 [behavior-matrix.md](../../packages/tason-mongodb/behavior-matrix.md)） | [monorepo/phase-c-bson-types.md](./monorepo/phase-c-bson-types.md) |
 | `toDocument` / `fromDocument`、`_t` 语义 | [polymorphic-persistence/design.md](./polymorphic-persistence/design.md) |
+| 语法层解析 AST、格式化规则与选项、注释归属 | [formatter/design.md](./formatter/design.md) |
 
 职责边界可以在相邻 feature 里各写一句（例如「`tason-mongodb` 不做对象打标」），但不要互相抄阶段表。
 

@@ -10,8 +10,8 @@ IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
 
 
 WS: [ \t\n\r]+ -> skip;
-SINGLE_LINE_COMMENT: '//' ~[\r\n]* -> skip;
-MULTI_LINE_COMMENT: '/*' .*? '*/' -> skip;
+SINGLE_LINE_COMMENT: '//' ~[\r\n]* -> channel(HIDDEN);
+MULTI_LINE_COMMENT: '/*' .*? '*/' -> channel(HIDDEN);
 
 
 value

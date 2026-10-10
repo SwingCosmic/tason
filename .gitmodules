@@ -1,0 +1,3 @@
+[submodule "extensions/vscode-tason"]
+	path = extensions/vscode-tason
+	url = https://github.com/SwingCosmic/vscode-extension-tason.git
