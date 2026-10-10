@@ -24,7 +24,9 @@ class ThrowingErrorListener implements ErrorListener<any> {
       msg: string,
       e: RecognitionException | undefined
   ): void {
-    throw e || new Error(msg);
+    // 不能抛 e（RecognitionException）：生成代码每层 rule 的 catch 会再次
+    // 捕获同类异常并走 recover()，错误被静默吞掉（如 {true: 1} 曾解析成 {}）
+    throw new Error(`line ${line}:${charPositionInLine} ${msg}`);
   }
 }
 

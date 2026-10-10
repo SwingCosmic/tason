@@ -98,4 +98,22 @@ describe("parse", () => {
 
     expect(s.parse(`"'\\""`)).toEqual(`'"`);
   });
+
+  test("保留字对象key", () => {
+    const s = new TASON.Serializer();
+    // true/false/null 优先于 IDENTIFIER 的专属 lexer 规则；
+    // NaN/Infinity 是 number 规则里字面量引用生成的隐式 token，同样优先于 IDENTIFIER。
+    for (const key of ["true", "false", "null", "NaN", "Infinity"]) {
+      expect(() => s.parse(`{${key}: 1}`)).toThrow(`${key}`);
+      expect(s.parse(`{"${key}": 1}`)).toEqual({ [key]: 1 });
+      expect(s.parse(`{'${key}': 1}`)).toEqual({ [key]: 1 });
+    }
+
+    expect(s.parse(`{True: 1, NULL: 2, nan: 3, infinity: 4}`)).toEqual({
+      True: 1,
+      NULL: 2,
+      nan: 3,
+      infinity: 4,
+    });
+  });
 });
