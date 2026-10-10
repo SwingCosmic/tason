@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import TASONSerializer from "./TASONSerializer";
 import TASONTypeRegistry from "./TASONTypeRegistry";
+import { formatTASON, parseSyntax } from "./syntax";
 import { Types } from "./types";
 
 export { default as TASONSerializer } from "./TASONSerializer";
@@ -34,15 +35,42 @@ export {
   mapRuntimeToTypeInstance,
 } from "./schema";
 
+export { formatTASON, parseSyntax };
+export type {
+  ArrayExpression,
+  BooleanLiteral,
+  CommentBlock,
+  CommentLine,
+  FormatResult,
+  Identifier,
+  NullLiteral,
+  NumericLiteral,
+  ObjectExpression,
+  ObjectProperty,
+  StringLiteral,
+  SyntaxDiagnostic,
+  SyntaxParseResult,
+  TASONComment,
+  TASONExpression,
+  TASONFormatOptions,
+  TypeInstance,
+} from "./syntax";
+
 export interface TASONStatic extends TASONSerializer {
   Serializer: typeof TASONSerializer;
   Types: typeof Types;
   Registry: typeof TASONTypeRegistry;
+  /** 语法层解析：不查类型注册表 */
+  parseSyntax: typeof parseSyntax;
+  /** 按选项整体重排文本。函数本体名为 formatTASON */
+  format: typeof formatTASON;
 }
 
 const TASON: TASONStatic = new TASONSerializer() as any;
 TASON.Serializer = TASONSerializer;
 TASON.Types = Types;
 TASON.Registry = TASONTypeRegistry;
+TASON.parseSyntax = parseSyntax;
+TASON.format = formatTASON;
 
 export default TASON;

@@ -20,7 +20,7 @@ export interface TASONFormatOptions {
   /** 数值优化扩展到内置数值 TypeName 的 Scalar 参数字符串；默认 false。
    *  仅在 optimizeNumbers 开启时生效。首版不实现，传 true 视为 false */
   optimizeNumberTypeInstances?: boolean;
-  /** 块注释按 JS 风格规范化；默认 false（注释原样搬运）。首版不实现，传 true 视为 false */
+  /** 块注释按 JS 风格规范化；默认 false（不做内部重排）。首版不实现，传 true 视为 false */
   optimizeBlockComments?: boolean;
   /** 换行符；默认 "lf"。插件侧传文档 EOL */
   endOfLine?: "lf" | "crlf";

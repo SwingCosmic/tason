@@ -1,6 +1,6 @@
 # 设计：语法层解析与格式化器（formatter）
 
-> 状态：**设计定稿，未开工** · 进度：[implementation-plan.md](./implementation-plan.md)  
+> 状态：**设计定稿；阶段一已实现** · 进度：[implementation-plan.md](./implementation-plan.md)  
 > 服务对象：VSCode 插件 vscode-tason（已以 git submodule 嵌入本仓库 `extensions/vscode-tason`，源仓库 GitHub: `vscode-extension-tason`）的「格式化文档」能力。
 
 ---
@@ -11,9 +11,9 @@
 ┌────────────────────────────────────────────┐
 │ VSCode 插件 vscode-tason（对端仓库）          │
 │ DocumentFormattingEditProvider               │
-│ 只做壳：取全文 → 调 formatTASON → 回 TextEdit   │
+│ 只做壳：取全文 → 调 TASON.format → 回 TextEdit │
 └───────────────────┬────────────────────────┘
-                    │ npm 依赖 tason（子入口 tason/syntax）
+                    │ npm 依赖 tason（主入口，挂载 TASON.*，§4）
 ┌───────────────────▼────────────────────────┐
 │ 核心包 tason（本 feature）                     │
 │ src/syntax/                                   │
@@ -122,7 +122,7 @@ interface Identifier {
 /** TypeName(arg)：ScalarTypeInstance / ObjectTypeInstance 的共同形态 */
 interface TypeInstance {
   type: "TypeInstance"; start: number; end: number;
-  typeName: Identifier;                       // 类型名（TASON 规范表述；词法层面任意 IDENTIFIER）
+  typeName: Identifier;                       // 类型名（词法层面任意 IDENTIFIER）
   argument: StringLiteral | ObjectExpression; // 嵌套子节点即普通节点，与别处无区别
 }
 
@@ -149,7 +149,7 @@ interface CommentLine {
 | `number` 规则（`SYMBOL? (NUMBER \| NaN \| Infinity)`） | `NumericLiteral` + `Identifier`（NaN / Infinity）+ `UnaryExpression`（符号） | **并入单一 `NumericLiteral`**（`sign?` + `raw`） | 符号不设 UnaryExpression 包装；**不做数值求值**（无 value 字段，大数 / 高精度安全） |
 | `true` / `false` / `null` | `BooleanLiteral` / `NullLiteral` | 同名 | — |
 | 裸 key、TypeName | `Identifier` | 同名 | — |
-| `TypeName(arg)` | （形似 `CallExpression`） | **`TypeInstance`（独有）** | `typeName` + 单 `argument`（callee 的 Babel 说法改为 TASON 规范表述 typeName）；argument 用普通 StringLiteral / ObjectExpression，嵌套子类型不设专形；scalar / object 形态由 `argument.type` 推导，不设 `form` 字段 |
+| `TypeName(arg)` | （形似 `CallExpression`） | **`TypeInstance`（独有）** | `typeName` + 单 `argument`；argument 用普通 StringLiteral / ObjectExpression，嵌套子类型不设专形；scalar / object 形态由 `argument.type` 推导，不设 `form` 字段 |
 
 设计要点：
 
@@ -180,7 +180,7 @@ export function parseSyntax(text: string): SyntaxParseResult;
 ### 2.4 错误策略
 
 - lexer / parser 各挂**收集型** ErrorListener（不 throw）；`INVALID_CHAR` 词法动作里的 throw 在入口捕获后转诊断。
-- ANTLR parser 自带 error recovery（删 / 插 token 恢复），收集模式下让它跑完，通常仍能得到部分树；树中的 ErrorNode 子树由 formatter 原样保留原文（§3.5，后续阶段才启用）。
+- ANTLR parser 自带 error recovery（删 / 插 token 恢复），收集模式下让它跑完，通常仍能得到部分树；树中的 ErrorNode 子树由 formatter 原样保留原文（§3.5，阶段二才启用）。
 - **formatter 的 MVP 策略：diagnostics 非空 → 不格式化**（返回原文），插件据此提示「存在语法错误」。部分容错格式化是后续独立增强，不是首发门槛。
 
 ### 2.5 grammar 变更：注释进隐藏通道
@@ -253,7 +253,7 @@ interface TASONFormatOptions {
   /** 数值优化扩展到内置数值 TypeName 的 Scalar 参数字符串；默认 false。
       仅在 optimizeNumbers 开启时生效。首版不实现，传 true 视为 false */
   optimizeNumberTypeInstances?: boolean;
-  /** 块注释按 JS 风格规范化；默认 false（注释原样搬运）。首版不实现，传 true 视为 false */
+  /** 块注释按 JS 风格规范化；默认 false（不做内部重排）。首版不实现，传 true 视为 false */
   optimizeBlockComments?: boolean;
   /** 换行符；默认 "lf"。插件侧传文档 EOL */
   endOfLine?: "lf" | "crlf";
@@ -269,11 +269,11 @@ export function formatTASON(text: string, options?: TASONFormatOptions): FormatR
 
 `formatTASON` 内部即 `parseSyntax` + 打印；已持有 `SyntaxParseResult` 的调用方（未来 LSP）可复用解析结果，打印器以内部函数形态同时导出给两种入口。
 
-> **首版范围**：仅严格模式（`diagnostics` 非空即返回原文，§2.4）；`optimizeNumbers` / `optimizeNumberTypeInstances` / `optimizeBlockComments` 三个选项**预留但不实现**——传入 `true` 一律按 `false` 处理（§3.3.2 / §3.3.5 为后续版本的既定设计，配置文件可先写好）。其余选项首版全部实现。
+> **首版范围**：仅严格模式（`diagnostics` 非空即返回原文，§2.4）；`optimizeNumbers` / `optimizeNumberTypeInstances` / `optimizeBlockComments` 三个选项**预留但不实现**——传入 `true` 一律按 `false` 处理（规则见 §3.3.2 / §3.3.5，归入实施计划阶段二；配置文件可先写好）。其余选项首版全部实现。
 
 #### 3.3.2 数值优化规则（`optimizeNumbers`）
 
-> 首版不实施（选项视为 `false`）；本节规则为后续版本定稿。首版数值 raw 原样输出（仅压缩 `SYMBOL` 与数字 token 间空白）。
+> 本节为阶段二定稿规则；首版不实施（选项视为 `false`），数值 raw 原样输出（仅压缩 `SYMBOL` 与数字 token 间空白）。
 
 目标序：**尽可能优化成兼容 JSON 的格式；JSON 表达不了时退为 JS 字面量的规范形式；全程保留原有进制，不强制转 10 进制。**
 
@@ -298,7 +298,7 @@ export function formatTASON(text: string, options?: TASONFormatOptions): FormatR
 | --- | --- | --- |
 | `singleQuote: "auto"` | 统计源文全部 STRING token（含 string key）的引号字符，按 token 个数严格多数定单 / 双 | 平手或无字符串 → 双引号 |
 | `useTabs: "auto"` | 统计有前导缩进的行（注释行计入）：tab 起头 vs 空格起头，多数获胜 | 平手或无缩进行 → false（空格） |
-| `tabWidth: "auto"` | 候选 `{1,2,4,6,8}`；对每个 w 统计「前导空格数为 w 的正整数倍」的行数为支持度，取最高，**平手取较大 w**（w=1 整除一切缩进，取较小会退化成恒为 1；全 4 空格文档应检测为 4） | 无缩进行 → 2 |
+| `tabWidth: "auto"` | 候选 `{1,2,4,6,8}`；对每个 w 统计「前导空格数为 w 的正整数倍」的行数为支持度，取最高，**平手取较大 w**（w=1 能整除一切缩进） | 无缩进行 → 2 |
 
 检测在格式化输出上重跑得到相同结论（输出风格统一：单一引号、一致缩进单元）——这是 §3.1 幂等在第 5 条的成立依据。
 
@@ -321,9 +321,9 @@ export function formatTASON(text: string, options?: TASONFormatOptions): FormatR
 
 ### 3.3.5 块注释优化（`optimizeBlockComments`）
 
-> 首版不实施（选项视为 `false`）；本节规则为后续版本定稿。首版块注释 value 原样搬运（重拼定界符）。注意：**首版仍包含 g4 注释通道变更**（§2.5）——注释的收集与保留不依赖本节优化。
+> 本节为阶段二定稿规则；首版不实施（选项视为 `false`）。关闭时不做本节的装饰重排，只重拼定界符；行首缩进跟随元素见 §3.4，不依赖本选项。**g4 注释通道变更（§2.5）在首版内**——注释的收集与保留不依赖本节优化。
 
-默认 `false`：关闭时块注释按 value 原样搬运（§3.4）。开启后按 JS 风格规范化；行注释（`//`）不受影响。单行 / 多行以 `CommentBlock.value`（§2.2，已剥定界符）是否含换行判定：
+默认 `false`：关闭时块注释文字原样，行首缩进按 §3.4 跟随。开启后按 JS 风格规范化；行注释（`//`）不受影响。单行 / 多行以 `CommentBlock.value`（§2.2，已剥定界符）是否含换行判定：
 
 | 内容形态 | 输出 |
 | --- | --- |
@@ -370,21 +370,22 @@ MVP 用确定性规则（依据 token 流 + 节点 / 注释的 `start` / `end` +
 | 文件首 / 尾 | 根值之前 / EOF 之后的注释 | 根值前 / 文件尾独立块 |
 
 - 注释之间、注释与代码之间的空行保留至多 1 行（块注释**内部**的空行不适用本条，由 §3.3.5 全量保留）。
-- 注释**内容原样**：`CommentBlock` / `CommentLine` 的 `value` 不改写，输出时重拼定界符（`//` + value；`/*` + value + `*/`）；`optimizeBlockComments` 开启时，块注释在写出前先过 §3.3.5 规范化器（输入即 value）。
+- 注释**文字原样**：不改写注释里的文字，也不做 §3.3.5 的装饰重排（首版 `optimizeBlockComments` 视为 false）。输出时重拼定界符（`//` + value；`/*` + value + `*/`）；该选项开启后，块注释在写出前先过 §3.3.5 规范化器（输入即 value）。
+- **整体跟随缩进**（与 `optimizeBlockComments` 无关）：单独成行的注释，以及 value 里含换行的块注释，定界符所在行对齐到所关联元素的输出列；后续各行按同一列差平移，行与行的相对缩进保留。只增删行首空格或 tab，减不动时停在列 0，不吃进文字。列差为 0 时这些行保持原样。行末注释的定界符留在代码行末，续行相对于定界符的新列做同样的平移。
 - 规则只依赖 token 相对位置与换行存在性 → 确定、可表格驱动测试、幂等。
 
 ### 3.5 错误容忍（后续增强，非 MVP）
 
 **首版仅严格模式**：diagnostics 非空即返回原文，且**不暴露** `errorTolerance` 选项。
 
-后续可选：diagnostics 非空时仍尽力格式化——ErrorNode 子树按 start / end 截原文原样输出，其余子树正常格式化。风险是部分输出不保证幂等、编辑可能跨错误点移动文本。列为独立阶段，默认关闭（`errorTolerance?: "strict" | "best-effort"`，默认 `"strict"`）。
+后续可选：diagnostics 非空时仍尽力格式化——ErrorNode 子树按 start / end 截原文原样输出，其余子树正常格式化。风险是部分输出不保证幂等、编辑可能跨错误点移动文本。归入阶段二，默认关闭（`errorTolerance?: "strict" | "best-effort"`，默认 `"strict"`）。
 
 ---
 
 ## 4. 导出与打包
 
-- 根入口 `index.ts`：`export { parseSyntax, formatTASON }` 及相关类型。
-- 子路径 **`tason/syntax`**：只含 syntax + formatter 的模块图（不 import `types/` 的值级实现 → 不拉 decimal.js 包装类链 / date-fns / uuid / reflect-metadata；数值优化自身用 decimal.js / BigInt 是格式化器直接依赖，允许）。插件 esbuild bundle 体积显著小于整包。
+- 根入口 `index.ts`：`parseSyntax` / `formatTASON` 挂载到默认导出的 `TASON`（`TASONStatic`）上，即 `TASON.parseSyntax` / `TASON.format`（函数本体与 `tason/syntax` 子入口仍名 `formatTASON`）；相关类型具名导出。
+- 子路径 **`tason/syntax`**：只含 syntax + formatter 的模块图（不 import `types/` 的值级实现 → 不拉 decimal.js 包装类链 / date-fns / uuid / reflect-metadata；数值优化自身用 decimal.js / BigInt 是格式化器直接依赖，允许），导出函数形态 `parseSyntax` / `formatTASON`。**插件不用子入口**：`.tasonrc` 直读用值级 `TASON.parse`（§5），插件依赖主入口整包（体积换简单性）；子入口留给不做配置直读的轻量消费方。
 - `package.json` 新增 `exports` 字段的兼容性注意：加 `exports` 后未列出的子路径（含 deep import `tason/lib/...`）失效。当前无文档化的 deep import 路径 → 按 `{ ".", "./syntax", "./package.json" }` 添加，随 minor 发布并在 CHANGELOG 声明。
 - antlr4 runtime 随 bundle 打入（体积量级可接受；不为此引入 parser 进程隔离 / worker）。
 
@@ -393,20 +394,32 @@ MVP 用确定性规则（依据 token 流 + 节点 / 注释的 `start` / `end` +
 ## 5. VSCode 插件侧对接契约（对端仓库实现，本仓库只记录）
 
 1. 注册 `DocumentFormattingEditProvider`（语言 `tason`）；MVP 只做整文档格式化，不实现 range formatting。
-2. 实现骨架：`formatTASON(doc.getText(), { endOfLine: doc.eol === vscode.EndOfLine.CRLF ? "crlf" : "lf", ...用户配置 })`；`diagnostics` 非空 → `showWarningMessage`（带首条诊断信息）并返回 `[]`；否则返回整文单个 `TextEdit`（结果与原文相同则 `[]`）。
-3. 配置解析（插件侧职责；核心 `formatTASON` 只接收**最终的配置对象**，不读文件系统——配置对象作参数是核心 API 的固定形态）。来源优先级从高到低，**逐字段合并**（高层来源设置了的字段覆盖低层）：
+2. 实现骨架：provider 回调 `(doc, options)` 中 `options` 是编辑器为该文档解析出的 `FormattingOptions`，经第 3 条链合并出最终配置后调用 `TASON.format(doc.getText(), merged)`；`endOfLine` 基线取 `doc.eol === vscode.EndOfLine.CRLF ? "crlf" : "lf"`（随文档实际内容，非风格偏好；用户显式配置可覆盖）；`diagnostics` 非空 → `showWarningMessage`（带首条诊断信息）并返回 `[]`；否则返回整文单个 `TextEdit`（结果与原文相同则 `[]`）。
+3. 配置解析（插件侧职责；核心 `formatTASON` 只接收**最终的配置对象**，不读文件系统——配置对象作参数是核心 API 的固定形态）。来源优先级从高到低，**逐字段合并**；每层只取**显式设置**的值（VSCode 设置经 `inspect()` 按作用域取值，贡献的设置默认值不参与合并）：
 
    | 优先级 | 来源 | 说明 |
    | --- | --- | --- |
-   | 1 | VSCode 设置 `tason.format.*`（工作区 > 用户） | 逐字段映射 `TASONFormatOptions`；未设置的字段不参与覆盖。检测类选项可在 VSCode 侧默认暴露为 `"auto"`（编辑器场景「跟随文档」更顺手） |
-   | 2 | 项目根 `.tasonrc.json` | schema 即 `TASONFormatOptions` 的 JSON 形态（键名一致） |
-   | 3 | 项目 prettier 配置 | `.prettierrc` / `.prettierrc.json` / `package.json` 的 `prettier` 字段；**只取 TASON 认识的键**：`tabWidth` / `useTabs` / `printWidth` / `singleQuote` / `trailingComma` |
-   | 4 | 核心包默认值 | 不复制到插件，缺省即默认 |
+   | 1 | 项目 `.tasonrc` | 文件家族 `.tasonrc` / `.tasonrc.json` / `.tasonrc.jsonc` / `.tasonrc.tason`（并存按此序取首个），内容用值级 `TASON.parse` 直读（JSON / JSONC 是其文法子集，结果即普通对象）。schema 即 `TASONFormatOptions`（键名一致），不认识的键忽略；未注册 TypeName 抛错与解析失败同等降级 |
+   | 2 | EditorConfig ~ 工作区 VSCode 设置 `tason.format.*`（同层） | **EditorConfig 由编辑器自动遵循，插件不解析 `.editorconfig`**——把 provider 参数 `FormattingOptions` 的 `tabSize` / `insertSpaces`（编辑器为该文档解析的缩进，已含 EditorConfig 与编辑器缩进检测的结果）作为该层来源喂进合并链；**不得**直接读 `editor.*` 配置（会绕过解析结果）。该来源只覆盖 `tabWidth` / `useTabs`。同字段两边都设置时，显式 `tason.format.*`（`inspect()` 的 `workspaceValue` / `workspaceFolderValue`）覆盖编辑器解析值 |
+   | 3 | 项目 prettier 配置 | 由 VSCode 设置 `tason.format.usePrettierConfig` 开关（默认 `false`）；**首版不实现**（设置项暂不贡献，此层缺位）。开启后读取 `.prettierrc` / `.prettierrc.json` / `package.json` 的 `prettier` 字段，只取认识的键：`tabWidth` / `useTabs` / `printWidth` / `singleQuote` / `trailingComma`；**某键的值不认识 → 该键按默认值处理**（不透传、不继续向低层来源取值） |
+   | 4 | 全局 VSCode 设置 `tason.format.*`（用户） | `inspect()` 的 `globalValue`，逐字段映射 `TASONFormatOptions` |
+   | 5 | 默认值 | `singleQuote` 缺省 `"auto"`（编辑器没有对应的引号信息，靠文档统计检测）；其余为核心包默认，不复制到插件 |
 
+   - 层 2 的编辑器解析值恒存在：编辑器场景下缩进实际总是由它决定（prettier / 全局设置里的 `tabWidth` / `useTabs` 不生效）；核心 `"auto"` 检测在编辑器场景主要作用于 `singleQuote`，缩进的「自动」由编辑器检测承担。
+   - **值的提供者与覆盖方向（单向链路，防循环依赖）**：职责三分——EditorConfig 应用、缩进检测、语言设置解析在**编辑器**（含 EditorConfig 扩展）；配置文件读取、逐字段合并、调用核心在**插件**；内容统计检测（`"auto"`）与格式化在**核心包**。数据只单向流动（编辑器 → 插件 → 核心），插件只读搬运：不写回 `TextEditor.options`、不自行解析 `.editorconfig`、不把格式化输出回流进配置解析；核心不读文件系统。同字段覆盖次序恒为**显式配置 > 编辑器事实 > 内容猜测**：`tabWidth` / `useTabs` 的编辑器解析值覆盖核心 `"auto"`，与 `endOfLine` 取 `doc.eol`（文档事实压过猜测）同构，不存在反向。格式化输出即便触发编辑器重新检测缩进，结论与本次合并值一致（输出缩进即由它决定），链路收敛、不振荡。
+   - **EditorConfig 在 VSCode 的生效途径（2026-10 检索确认）**：VSCode 核心不内置 `.editorconfig`，生效依赖官方扩展 EditorConfig.EditorConfig（[marketplace](https://marketplace.visualstudio.com/items?itemName=EditorConfig.EditorConfig)、[源码](https://github.com/editorconfig/editorconfig-vscode)）——它在打开 / 切换 / 聚焦编辑器时读取最近 `.editorconfig`，把 `indent_style` / `indent_size` / `tab_width` / `end_of_line` 写入该文档的 `TextEditor.options`（`tabSize` / `insertSpaces` / `eol`），自身不注册格式化器；`trim_trailing_whitespace` / `insert_final_newline` 走保存期编辑，与格式化无关。VSCode 传给 provider 的 `FormattingOptions` 由文档已解析选项派生（含 `editor.detectIndentation` 与语言特定覆盖），故插件读 provider 参数即已带上 EditorConfig 结果。已知边界：以上以文档在编辑器中打开为前提，后台 / 未打开文档的程序化格式化可能未应用 EditorConfig（回落编辑器默认与检测值）——落地时实测确认，结论有变则更新本条。
    - `trailingComma` 映射：prettier `"es5"` / `"all"` → `"all"`；`"none"` → `"none"`。
-   - 文件缺失 / JSON 损坏：该来源整体跳过，损坏时 `showWarningMessage`，不阻断格式化。
-   - prettier 的 JS / YAML / TOML 形态（`.prettierrc.js` / `.prettierrc.yaml` 等）MVP 不读取（需要模块加载或额外解析器，体积与安全权衡），列为后续。
+   - 文件缺失 / 解析失败（`TASON.parse` 抛错或结果不是普通对象）：该来源整体跳过，损坏时 `showWarningMessage`，不阻断格式化。
+   - `.tasonrc` 只查文档所属 workspace folder 根目录，不向上递归（向上查找归阶段二）。
+   - prettier 的 JS / YAML / TOML 形态（`.prettierrc.js` / `.prettierrc.yaml` 等）不读取（需要模块加载或额外解析器，体积与安全权衡），归阶段二。
+   - prettier 配置的细节（配置文件形态与优先级、键名与合法值集合、`trailingComma` 取值语义）均为**设计期记录**：落地实现该开关时必须重新检索 prettier 官方文档逐一确认，**不得凭记忆或猜测实现**，确认结果回写本节。
 4. 插件不解析文本、不判定语法；一切判定在核心包。
+
+**优先级顺序的设计原因**（业界阵营概况，只记主要顺序、不展开各工具细节）：
+
+- 「配置文件优先」阵营——prettier、black、gofmt、rustfmt、clang-format、dart format 等：配置文件（如有）> 工具默认值；prettier 另把 `.editorconfig` 作为中间层（只填补配置文件未设的项）。编辑器文档手工设置（状态栏缩进选择等）**一律不参与**。动机：真相源是文件，同一文件在 CLI / CI / 编辑器中输出一致。
+- 「编辑器优先」阵营——VSCode 内置语言格式化器（JSON / HTML / CSS 等）：没有项目配置文件，编辑器解析值（含 EditorConfig 扩展、缩进检测、状态栏手工调整）就是全部配置。
+- 本链路取两者折中：**显式配置 > 编辑器事实**沿用前一阵营——稳定的项目意图优先、文件是可复现的真相源；**编辑器事实 > prettier 层 / 全局设置 / 默认值**沿用后一阵营——无 TASON 显式配置时跟随编辑器现状（含文档手工调整，见上「值的提供者与覆盖方向」）。编辑器事实只存在于插件链，核心 API 不感知编辑器状态，CLI / CI 场景的可复现性与配置文件阵营同级。
 
 ---
 
@@ -417,11 +430,11 @@ MVP 用确定性规则（依据 token 流 + 节点 / 注释的 `start` / `end` +
 | 文件 | 覆盖 |
 | --- | --- |
 | `packages/tason/test/syntax-parse.test.ts` | AST 形状（`type` / `start` / `end`、字面量 `sign` / `raw` / `value`、TypeInstance typeName / argument）；任意（未注册 / 不存在的）TypeName 合法；行注释 / 块注释全量收集（CommentBlock / CommentLine，value 已剥定界）；诊断定位（offset / line / column）；`INVALID_CHAR` 转诊断 |
-| `packages/tason/test/formatter.test.ts` | **首版**：不变量三件套（幂等 / 语义保真 / 注释零丢失）× 首版选项矩阵 + `optimize*` 传 `true` 等价 `false`；注释四类归属（value 原样、重拼定界符）；§3.3.3 检测规则矩阵 + `"auto"` 幂等稳定性；§3.3.4 key 去引号黑名单矩阵（含转义写法解码、空串、非标识符字符、`singleQuote` 交互）；EOL；空容器与强制展开。**Phase D**：§3.3.2 数值优化全表 + 进制保留 + `-0`→`0`；§3.3.5 块注释规范化矩阵（单 / 多行、JSDoc 保留、空内容 `/* */` 连字安全、连续空行纵向保留、首行空白不提行、无 `*` 行缩进剥离、内容前导空格不压缩、尾随空白裁剪、行中 `*`、幂等）；`NUMBER_TYPE_NAMES` 全名单 Scalar 参数优化往返 |
+| `packages/tason/test/formatter.test.ts` | **首版**：不变量三件套（幂等 / 语义保真 / 注释零丢失）× 首版选项矩阵 + `optimize*` 传 `true` 等价 `false`；注释四类归属（文字原样、重拼定界符、多行注释整体跟随元素缩进）；§3.3.3 检测规则矩阵 + `"auto"` 幂等稳定性；§3.3.4 key 去引号黑名单矩阵（含转义写法解码、空串、非标识符字符、`singleQuote` 交互）；EOL；空容器与强制展开。**阶段二**：§3.3.2 数值优化全表 + 进制保留 + `-0`→`0`；§3.3.5 块注释规范化矩阵（单 / 多行、JSDoc 保留、空内容 `/* */` 连字安全、连续空行纵向保留、首行空白不提行、无 `*` 行缩进剥离、内容前导空格不压缩、尾随空白裁剪、行中 `*`、幂等）；`NUMBER_TYPE_NAMES` 全名单 Scalar 参数优化往返 |
 
 - 语义保真的写法：`expect(serializer.parse(formatTASON(src).text)).toEqual(serializer.parse(src))`，对既有 fixture 全量 + 边界样本。
 - 回归：grammar 通道变更合入时跑核心全量（至少 `number-handling` / `runtime-schema` / `multi-implementation`）。
-- 插件侧验证在 vscode 仓库做（手动清单 + 插件自测），本仓库不测 VSCode API；配置解析（`.tasonrc.json` 读取、prettier 键映射、优先级逐字段合并、损坏文件降级）同样在插件仓库测试。
+- 插件侧验证在 vscode 仓库做（手动清单 + 插件自测），本仓库不测 VSCode API；配置解析（`.tasonrc` 家族读取与 TASON 解析、优先级逐字段合并含工作区 / 全局拆分与编辑器解析层、损坏文件降级）同样在插件仓库测试；prettier 键映射与未识别值回退随开关实现再补测试。
 
 ---
 
@@ -429,17 +442,18 @@ MVP 用确定性规则（依据 token 流 + 节点 / 注释的 `start` / `end` +
 
 | 风险 | 处理 |
 | --- | --- |
-| 注释改 HIDDEN 通道影响值级行为 | `getText()` 不含 HIDDEN token（ANTLR4 语义）+ 全量回归背书；若仍异常，回滚该 diff，备选方案为语法层独立 lexer 实例 + 通道过滤 |
+| 注释改 HIDDEN 通道影响值级行为 | `getText()` 不含 HIDDEN token（ANTLR4 语义）；全量回归背书（已通过） |
 | 数值优化引入精度偏差 / 值漂移 | decimal.js / BigInt 精确重排，禁 JS `number` 往返；输出重 lex 验证；`-0` → `0` 是唯一值级例外（决策定稿，测试用宽松比较钉死）；全名单 TypeInstance 往返断言 |
 | 块注释规范化丢内容 / 不幂等 | 只剥装饰（行首空白 + 至多一个前导 `*`），文字逐行保留；空内容与 JSDoc 边界入测试矩阵；幂等用例背书 |
-| 插件配置来源冲突 / 文件损坏 | 优先级逐字段合并定死（§5）；损坏文件降级跳过 + 提示，不阻断格式化 |
+| 插件配置来源冲突 / 文件损坏 | 优先级逐字段合并定死（§5，含 EditorConfig 编辑器解析层与工作区 / 全局拆分）；损坏文件降级跳过 + 提示，不阻断格式化 |
+| EditorConfig 适配依赖第三方扩展行为（VSCode 核心不内置） | 只消费 provider 参数中的编辑器解析值（§5 检索结论），插件不解析不写回；扩展缺失 / 文档未打开时自然回落编辑器默认与检测值，不报错；两类场景落地实测 |
 | `"auto"` 检测抖动（两次格式化结论不同） | 检测只依赖源文统计量，且输出风格统一 → 对输出重检结论不变（§3.1 第 5 条），作为测试固定 |
 | key 去引号误伤 → 输出语法错误 | 解码值整个匹配 IDENTIFIER 词法 + 黑名单 `{ true, false, null, NaN, Infinity }` 双重判定；黑名单矩阵表格驱动测试 |
 | `NUMBER_TYPE_NAMES` 双份维护 | 抽无依赖叶子模块，`types/NumberHandling.ts` re-export，名单仍单一真相源 |
 | `exports` 字段封死 deep import | minor + CHANGELOG 声明；发布前核对无文档化 deep import |
 | 注释规则复杂度膨胀 | 锚定 §3.4 四类规则；新需求先加测试再改规则，不引入附着模型 |
 | 打印机复杂化 | MVP 二态 group；doc algebra 列为后续演进，不动公开 API |
-| 插件自写第二套 parser 造成语法漂移 | **评审拒绝**；插件只允许 import `tason` |
+| 插件自写第二套 parser 造成语法漂移 | 禁止；插件只允许 import `tason`（§0） |
 
 ---
 
@@ -454,10 +468,10 @@ MVP 用确定性规则（依据 token 流 + 节点 / 注释的 `start` / `end` +
 7. 数值优化 `optimizeNumbers`（默认关）：同进制等值最短 / 最规范，JSON 文法优先、JS 字面量兜底，禁 JS `number` 往返；**`-0` 优化为 `0`（唯一值级例外）**；`optimizeNumberTypeInstances`（默认关）扩展到 `NUMBER_TYPE_NAMES` 名单的 Scalar 参数，名单抽无依赖叶子模块共享。
 8. key 引号简化 `quoteKeys`：默认 `"as-needed"`（尽可能去引号），`"preserve"` 可关；判定用解码后完整值，IDENTIFIER 词法 + 黑名单 `{ true, false, null, NaN, Infinity }` 双重通过才去引号。
 9. 块注释优化 `optimizeBlockComments`（默认关）：JS 风格——单行 `/* 内容 */`，多行行首 `* ` 前缀 + `*/` 独立成行、缩进对齐 `/*`；JSDoc 额外 `*` 保留；纯字符串解析器实现，不进 grammar。
-10. 核心 API 只接收配置对象参数，不读文件系统；插件侧配置链 `tason.format.*` > `.tasonrc.json` > prettier（JSON 家族，仅认 `tabWidth` / `useTabs` / `printWidth` / `singleQuote` / `trailingComma`）> 默认，逐字段合并。
-11. **首版范围**：仅严格模式（有诊断不格式化、返回原文，不暴露 `errorTolerance`）；`optimizeNumbers` / `optimizeNumberTypeInstances` / `optimizeBlockComments` 预留但不实现（传 `true` 视为 `false`）；`best-effort` 容错与两个优化器归入 plan Phase D。g4 注释通道变更（§2.5）在首版内。
+10. 核心 API 只接收配置对象参数，不读文件系统；插件侧配置链、逐字段合并规则与单向数据流见 §5 第 3 条（单一出处）。
+11. **首版范围**：仅严格模式（有诊断不格式化、返回原文，不暴露 `errorTolerance`）；三个 `optimize*` 预留但不实现（传 `true` 视为 `false`，§3.3.1）；g4 注释通道变更（§2.5）在首版内。延期项统一归实施计划阶段二。
 12. 幂等、语义保真、可见信息不丢失（含注释零丢失）是发布硬标准。
-13. 子路径导出 `tason/syntax`，根入口同时 re-export；`exports` 字段变更随 minor 发布声明。
+13. 子路径导出 `tason/syntax`（函数形态）；根入口挂载 `TASON.parseSyntax` / `TASON.format`（函数本体仍名 `formatTASON`）；`exports` 字段变更随 minor 发布声明。
 
 ---
 

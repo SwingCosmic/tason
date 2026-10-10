@@ -135,6 +135,18 @@ const serializer = new TASON.Serializer({
 
 完整选项表、示例与选用建议见 [数值处理](../../docs/number-handling.md)。
 
+## 格式化
+
+`TASON.format`（具名导出 `formatTASON`）按选项把文本整体重排，不查类型注册表。语法错误时 `text` 仍是原文。只要语法层、不要值级依赖时用 `tason/syntax`。
+
+```ts
+import TASON from "tason";
+
+TASON.format(`{a:\n1 , 'b':2,}`).text; // "{ a: 1, b: 2 }\n"
+```
+
+选项表、三个首版未实现的 `optimize*`、以及 `.tasonrc` 见 [格式化](../../docs/formatting.md)。
+
 ## 内置类型与多实现
 
 内置类型覆盖整数 / 浮点数（`Int32`、`Int64`、`Decimal128` …）、时间日期、UUID、Buffer、RegExp、集合与字典等，完整清单与注意事项见 [类型系统](../../docs/type-system.md)。
@@ -154,6 +166,7 @@ const serializer = new TASON.Serializer({
 | [仓库根 README](../../README.md) | 项目总览、特性、使用场景、完整安装说明 |
 | [类型系统](../../docs/type-system.md) | 语法类型、内置类型清单、同一类型名的多种实现与规范约定 |
 | [数值处理](../../docs/number-handling.md) | 序列化 / 反序列化数值装箱与拆箱策略 |
+| [格式化](../../docs/formatting.md) | `TASON.format` / `parseSyntax`、选项，以及 `tason/syntax` 子入口 |
 | [实体元数据与 Schema](../../docs/class-metadata.md) | 用 Valibot 等契约把字段收成 `bigint` / `Date` 等运行时类型，自定义 adapter |
 | [正则表达式](../../docs/regexp.md) | `RegExp` 类型实例与选项 |
 | [MongoDB / BSON 类型](../tason-mongodb/README.md) | BSON 标量类型扩展与默认实现替换选项 |

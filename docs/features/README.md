@@ -12,6 +12,7 @@
 | [../number-handling.md](../number-handling.md) | 数值处理 |
 | [../class-metadata.md](../class-metadata.md) | 实体 Schema |
 | [../regexp.md](../regexp.md) | RegExp |
+| [../formatting.md](../formatting.md) | 语法层解析与格式化（`TASON.format`） |
 | [../../packages/tason-mongodb/README.md](../../packages/tason-mongodb/README.md) | Mongo 扩展（使用说明） |
 | [../tason-mongodb.md](../tason-mongodb.md) | mongoose / 持有点 / 集成测试 |
 

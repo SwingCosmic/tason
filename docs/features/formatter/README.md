@@ -16,6 +16,6 @@
 | | 本 feature | 不在本 feature |
 | --- | --- | --- |
 | 核心包 | `src/syntax/` 模块、AST 与诊断模型、格式化器与选项、`tason/syntax` 子入口 | 值级 `parse` / `stringify` 的任何语义（Handling、schema、Registry） |
-| VSCode 插件 | 只记对接契约（design.md §5）：provider、配置链（`tason.format.*` > `.tasonrc.json` > prettier JSON 家族 > 默认） | 插件本体实现（在插件仓库做）；插件**禁止**内置第二套 TASON 语法 |
+| VSCode 插件 | 只记对接契约（design.md §5）：provider、配置链（`.tasonrc` > EditorConfig ~ 工作区 `tason.format.*` > prettier（开关、首版不做）> 全局 `tason.format.*` > 默认） | 插件本体实现（在插件仓库做）；插件**禁止**内置第二套 TASON 语法 |
 
 语法层只共用 `TASON.g4` 与生成物，与 runtime-type / monorepo / polymorphic-persistence 没有排期互锁。

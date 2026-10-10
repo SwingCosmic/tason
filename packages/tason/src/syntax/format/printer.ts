@@ -19,6 +19,8 @@ export class Printer {
   constructor(
     private readonly options: ResolvedFormatOptions,
     private readonly attachment: CommentAttachment,
+    /** 原文，用来量注释定界符的起始列（续行按列差整体平移） */
+    private readonly source: string,
   ) {
     this.eol = options.endOfLine === "crlf" ? "\r\n" : "\n";
     this.quote = options.singleQuote ? "'" : '"';
@@ -32,7 +34,7 @@ export class Printer {
     this.appendTrailing(out, this.attachment.trailing.get(root));
     for (const item of this.attachment.fileTail) {
       if (item.blankBefore && out.length > 0) out.push("");
-      out.push(this.renderComment(item.comment));
+      out.push(this.renderCommentBody(item.comment, 0));
     }
     return out.join(this.eol) + this.eol;
   }
@@ -54,16 +56,84 @@ export class Printer {
     return width;
   }
 
-  private renderComment(comment: AST.TASONComment): string {
+  private commentBody(comment: AST.TASONComment): string {
     return comment.type === "CommentBlock"
       ? "/*" + comment.value + "*/"
       : "//" + comment.value;
   }
 
+  /**
+   * 把注释整体平移，使定界符落在 targetColumn。
+   * 续行按同一列差移动，行间相对缩进保留；只改行首空白，不重排文字。
+   * 返回值的首行不含缩进，调用方负责把首行接到宽度恰好为 targetColumn 的前缀后。
+   */
+  private renderCommentBody(comment: AST.TASONComment, targetColumn: number): string {
+    const body = this.commentBody(comment);
+    if (!/[\n\r]/.test(body)) return body;
+
+    const delta = targetColumn - this.columnAt(comment.start);
+    const lines = body.split(/\r\n|\n|\r/);
+    const shifted = lines.map((line, index) => {
+      if (index === 0 || delta === 0 || line.length === 0) return line;
+      return this.shiftIndent(line, delta);
+    });
+    return shifted.join(this.eol);
+  }
+
+  /** 注释定界符在原文中的起始列（tab 按 tabWidth 计） */
+  private columnAt(offset: number): number {
+    let i = offset;
+    while (i > 0) {
+      const ch = this.source[i - 1];
+      if (ch === "\n" || ch === "\r") break;
+      i--;
+    }
+    return this.visualWidth(this.source.slice(i, offset));
+  }
+
+  /** 行首空白按列差增减；不够减时停在列 0，不吃进文字 */
+  private shiftIndent(line: string, delta: number): string {
+    let columns = 0;
+    let i = 0;
+    while (i < line.length) {
+      const ch = line[i];
+      if (ch === " ") {
+        columns += 1;
+        i++;
+      } else if (ch === "\t") {
+        columns += this.options.tabWidth;
+        i++;
+      } else {
+        break;
+      }
+    }
+    const next = Math.max(0, columns + delta);
+    if (next === columns) return line;
+    return this.indentColumns(next) + line.slice(i);
+  }
+
+  private indentColumns(columns: number): string {
+    if (this.options.useTabs) {
+      const tabs = Math.floor(columns / this.options.tabWidth);
+      const spaces = columns % this.options.tabWidth;
+      return "\t".repeat(tabs) + " ".repeat(spaces);
+    }
+    return " ".repeat(columns);
+  }
+
+  private lastLineWidth(text: string): number {
+    const nl = text.lastIndexOf("\n");
+    const cr = text.lastIndexOf("\r");
+    const cut = Math.max(nl, cr);
+    return this.visualWidth(cut < 0 ? text : text.slice(cut + 1));
+  }
+
   private emitCommentLines(items: AttachedComment[], indent: number, out: string[]): void {
+    const prefix = this.indentStr(indent);
+    const column = this.visualWidth(prefix);
     for (const item of items) {
       if (item.blankBefore && out.length > 0) out.push("");
-      out.push(this.indentStr(indent) + this.renderComment(item.comment));
+      out.push(prefix + this.renderCommentBody(item.comment, column));
     }
     if (items.length > 0 && out.length > 0 && items[items.length - 1].blankAfter) {
       out.push("");
@@ -73,18 +143,18 @@ export class Printer {
   /** 行末注释：块注释前一空格、行注释前两空格；块在前、行在后（行注释必须最后，否则吞掉后续内容） */
   private appendTrailing(out: string[], items: AttachedComment[] | undefined): void {
     if (!items || items.length === 0) return;
-    let suffix = "";
+    let line = out[out.length - 1];
     for (const item of items) {
-      if (item.comment.type === "CommentBlock") {
-        suffix += " /*" + item.comment.value + "*/";
-      }
+      if (item.comment.type !== "CommentBlock") continue;
+      const targetColumn = this.lastLineWidth(line) + 1;
+      line += " " + this.renderCommentBody(item.comment, targetColumn);
     }
     for (const item of items) {
-      if (item.comment.type === "CommentLine") {
-        suffix += "  //" + item.comment.value;
-      }
+      if (item.comment.type !== "CommentLine") continue;
+      const targetColumn = this.lastLineWidth(line) + 2;
+      line += "  " + this.renderCommentBody(item.comment, targetColumn);
     }
-    out[out.length - 1] += suffix;
+    out[out.length - 1] = line;
   }
 
   private keyText(key: AST.Identifier | AST.StringLiteral): string {
@@ -277,9 +347,12 @@ export class Printer {
     return (this.attachment.leading.get(anchor)?.length ?? 0) > 0;
   }
 
-  private hasLineTrailing(anchor: AnchorNode): boolean {
+  /** 行注释，或值里含换行的块注释：不能塞进平铺行 */
+  private hasBreakTrailing(anchor: AnchorNode): boolean {
     const items = this.attachment.trailing.get(anchor);
-    return items != null && items.some((item) => item.comment.type === "CommentLine");
+    return items != null && items.some((item) =>
+      item.comment.type === "CommentLine" || /[\r\n]/.test(item.comment.value),
+    );
   }
 
   private tryFlatObject(node: AST.ObjectExpression, col: number): string | null {
@@ -289,7 +362,7 @@ export class Printer {
     let lineLength = col + 2; // "{ "
     for (const property of node.properties) {
       if (this.hasLeadingComments(property)) return null;
-      if (this.hasLineTrailing(property)) return null;
+      if (this.hasBreakTrailing(property)) return null;
       const key = this.keyText(property.key);
       const valueFlat = this.tryFlat(property.value, lineLength + key.length + 2);
       if (valueFlat === null) return null;
@@ -309,7 +382,7 @@ export class Printer {
     let lineLength = col + 1; // "["
     for (const element of node.elements) {
       if (this.hasLeadingComments(element)) return null;
-      if (this.hasLineTrailing(element)) return null;
+      if (this.hasBreakTrailing(element)) return null;
       const elementFlat = this.tryFlat(element, lineLength);
       if (elementFlat === null) return null;
       const part = elementFlat + this.flatTrailing(element);
@@ -325,7 +398,7 @@ export class Printer {
     if ((this.attachment.dangling.get(node)?.length ?? 0) > 0) return null;
     const argument = node.argument;
     if (this.hasLeadingComments(argument)) return null;
-    if (this.hasLineTrailing(argument)) return null;
+    if (this.hasBreakTrailing(argument)) return null;
     const name = node.typeName.name;
     const argumentFlat = this.tryFlat(argument, col + name.length + 1);
     if (argumentFlat === null) return null;

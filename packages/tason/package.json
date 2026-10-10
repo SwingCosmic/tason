@@ -1,6 +1,6 @@
 {
   "name": "tason",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "description": "Type-Augmented Serialization Object Notation",
   "type": "module",
   "keywords": [
@@ -14,6 +14,19 @@
   ],
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./syntax": {
+      "types": "./lib/syntax/index.d.ts",
+      "import": "./lib/syntax/index.js",
+      "default": "./lib/syntax/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "generate": "cd src/grammar && antlr4 -v 4.13.2 -Dlanguage=TypeScript TASON.g4",
     "build": "tsc && tsc-alias",

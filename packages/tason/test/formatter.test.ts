@@ -208,9 +208,180 @@ describe("formatter 注释", () => {
     ].join("\n");
     const result = formatTASON(`{ a: 1 }`);
     expect(result.diagnostics).toEqual([]);
-    // 块注释内容作为 leading 挂在根值前
+    // 块注释内容作为 leading 挂在根值前；列差为 0，内部文本不改
     const withComment = formatTASON(`${block}\n{ a: 1 }`);
     expect(withComment.text).toBe(`${block}\n{ a: 1 }\n`);
+  });
+
+  test("多行块注释随元素缩进整体平移", () => {
+    const src = [
+      "{",
+      "    /*",
+      "     * 第一行",
+      "     *   缩进保留",
+      "     *",
+      "     */",
+      "    a: 1,",
+      "}",
+    ].join("\n");
+    const expected = [
+      "{",
+      "  /*",
+      "   * 第一行",
+      "   *   缩进保留",
+      "   *",
+      "   */",
+      "  a: 1,",
+      "}",
+      "",
+    ].join("\n");
+    const once = formatTASON(src, { tabWidth: 2, optimizeBlockComments: true });
+    expect(once.text).toBe(expected);
+    expect(formatTASON(once.text, { tabWidth: 2 }).text).toBe(once.text);
+  });
+
+  test("加大缩进时块注释同样右移", () => {
+    const src = [
+      "{",
+      "  /*",
+      "   * 说明",
+      "  */",
+      "  a: 1,",
+      "}",
+    ].join("\n");
+    const expected = [
+      "{",
+      "    /*",
+      "     * 说明",
+      "    */",
+      "    a: 1,",
+      "}",
+      "",
+    ].join("\n");
+    const once = formatTASON(src, { tabWidth: 4 });
+    expect(once.text).toBe(expected);
+    expect(formatTASON(once.text, { tabWidth: 4 }).text).toBe(once.text);
+  });
+
+  test("单独行注释随元素缩进", () => {
+    const src = [
+      "{",
+      "    // 说明",
+      "    a: 1,",
+      "    b: [",
+      "        // 元素",
+      "        2,",
+      "    ],",
+      "}",
+    ].join("\n");
+    expect(formatTASON(src, { tabWidth: 2 }).text).toBe(
+      [
+        "{",
+        "  // 说明",
+        "  a: 1,",
+        "  b: [",
+        "    // 元素",
+        "    2,",
+        "  ],",
+        "}",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  test("块注释续行相对位置保留", () => {
+    const src = [
+      "{",
+      "    /*",
+      "*flush",
+      "        deeper",
+      "    */",
+      "    a: 1,",
+      "}",
+    ].join("\n");
+    const once = formatTASON(src, { tabWidth: 2 });
+    expect(once.text).toBe(
+      [
+        "{",
+        "  /*",
+        "*flush",
+        "      deeper",
+        "  */",
+        "  a: 1,",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    expect(formatTASON(once.text, { tabWidth: 2 }).text).toBe(once.text);
+  });
+
+  test("dangling 多行块注释按容器内层缩进平移", () => {
+    const src = [
+      "{",
+      "    a: 1,",
+      "    /*",
+      "     * tail",
+      "    */",
+      "}",
+    ].join("\n");
+    expect(formatTASON(src, { tabWidth: 2 }).text).toBe(
+      [
+        "{",
+        "  a: 1,",
+        "  /*",
+        "   * tail",
+        "  */",
+        "}",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  test("改用 tab 时多行块注释按列跟随", () => {
+    const src = [
+      "{",
+      "    /*",
+      "     * 说明",
+      "    */",
+      "    a: 1,",
+      "}",
+    ].join("\n");
+    // 一个宽 4 的 tab 与原来的 4 空格同列，续行保持原有空格
+    const same = formatTASON(src, { useTabs: true, tabWidth: 4 });
+    expect(same.text).toBe(
+      ["{", "\t/*", "     * 说明", "    */", "\ta: 1,", "}", ""].join("\n"),
+    );
+    expect(formatTASON(same.text, { useTabs: true, tabWidth: 4 }).text).toBe(same.text);
+
+    // 目标列 2，续行左移 2；3 列写成一个 tab 再加一个空格
+    const narrower = formatTASON(src, { useTabs: true, tabWidth: 2 });
+    expect(narrower.text).toBe(
+      ["{", "\t/*", "\t * 说明", "\t*/", "\ta: 1,", "}", ""].join("\n"),
+    );
+    expect(formatTASON(narrower.text, { useTabs: true, tabWidth: 2 }).text).toBe(narrower.text);
+  });
+
+  test("行末多行块注释的续行跟着定界符", () => {
+    // 源文 /* 在列 10；缩进改成 2 后落在列 8，续行同步左移 2 列
+    const src = [
+      "{",
+      "    a: 1, /* line1",
+      " ".repeat(14) + "line2",
+      " ".repeat(10) + "*/",
+      "}",
+    ].join("\n");
+    const once = formatTASON(src, { tabWidth: 2 });
+    expect(once.text).toBe(
+      [
+        "{",
+        "  a: 1, /* line1",
+        " ".repeat(12) + "line2",
+        " ".repeat(8) + "*/",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    expect(formatTASON(once.text, { tabWidth: 2 }).text).toBe(once.text);
   });
 });
 

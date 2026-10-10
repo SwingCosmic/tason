@@ -17,6 +17,6 @@ export function formatTASON(text: string, options?: TASONFormatOptions): FormatR
 
   const resolved = resolveFormatOptions(text, result.ast, options);
   const attachment = attachComments(text, result.ast, tokenize(text));
-  const printer = new Printer(resolved, attachment);
+  const printer = new Printer(resolved, attachment, text);
   return { text: printer.format(result.ast), diagnostics: [] };
 }
